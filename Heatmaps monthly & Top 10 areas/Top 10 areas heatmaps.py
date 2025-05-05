@@ -79,3 +79,24 @@ plt.show()
 top10 = counts.sort_values(by="burglary_count", ascending=False).head(10)
 print("\nTop 10 wards with most burglaries:\n")
 print(top10.to_string(index=False))
+
+import folium
+from folium.plugins import HeatMap
+
+top_ward_names = top10["NAME"].tolist()
+
+for ward_name in top_ward_names:
+    ward_geom = wards[wards["NAME"] == ward_name].geometry.values[0]
+    
+    ward_points = burglary_gdf[burglary_gdf.within(ward_geom)]
+    
+    if not ward_points.empty:
+        print(f"\n--- Heatmap for {ward_name} ---")
+        m = folium.Map(
+            location=[ward_points["Latitude"].mean(), ward_points["Longitude"].mean()],
+            zoom_start=14
+        )
+        HeatMap(ward_points[["Latitude", "Longitude"]].values.tolist(), radius=10).add_to(m)
+        display(m)
+    else:
+        print(f"{ward_name}: No burglary points found.")
