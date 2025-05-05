@@ -8,3 +8,4 @@ __pycache__/
 *.pyc
 data/additional/raw/*
 data/lookups/*
+data/boundaries/*
