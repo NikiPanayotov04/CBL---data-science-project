@@ -6,3 +6,5 @@
 *.geojson
 __pycache__/
 *.pyc
+data/additional/raw/*
+data/lookups/*

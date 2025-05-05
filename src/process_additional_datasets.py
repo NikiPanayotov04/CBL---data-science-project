@@ -11,7 +11,7 @@ ADDITIONAL_PROCESSED = ROOT_DIR / 'additional' / 'processed'
 BOUNDARY_DIR = ROOT_DIR / 'boundaries'
 LOOKUP_DIR = ROOT_DIR / 'lookups'
 
-# == Constants ==
+# == Variables and Constants ==
 RENAME_COLS = {'Area Code': 'LSOA code', 'mnemonic': 'LSOA code', 'LSOA21CD': 'LSOA code', 'LSOA11CD': 'LSOA code', 'LSOA Code': 'LSOA code',
                'Area Name': 'LSOA name', 'Area': 'LSOA name', 'LSOA21NM': 'LSOA name', 'LSOA11NM': 'LSOA name', 'LSOA Name': 'LSOA name'}
 
