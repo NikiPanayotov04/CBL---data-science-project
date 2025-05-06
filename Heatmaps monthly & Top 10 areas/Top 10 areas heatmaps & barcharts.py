@@ -100,3 +100,40 @@ for ward_name in top_ward_names:
         display(m)
     else:
         print(f"{ward_name}: No burglary points found.")
+
+import matplotlib.pyplot as plt
+
+yearly_data = {
+    "2022": [0]*12,
+    "2023": [0]*12,
+    "2024": [0]*12,
+    "2025": [0]*12,
+}
+
+for year in range(2022, 2026):
+    for month in range(1, 13):
+        month_str = f"{year}-{month:02d}"
+        city_file = os.path.join(base_path, month_str, f"{month_str}-city-of-london-street.csv")
+        metro_file = os.path.join(base_path, month_str, f"{month_str}-metropolitan-street.csv")
+        monthly_count = 0
+
+        for file in [city_file, metro_file]:
+            if os.path.exists(file):
+                df = pd.read_csv(file)
+                df = df[df["Crime type"].str.lower() == "burglary"]
+                monthly_count += len(df)
+
+        yearly_data[str(year)][month - 1] = monthly_count
+
+months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+for year, counts in yearly_data.items():
+    plt.figure(figsize=(10, 5))
+    plt.bar(months, counts, color="darkorange")
+    plt.title(f"Burglary Counts per Month – {year}")
+    plt.xlabel("Month")
+    plt.ylabel("Number of Burglaries")
+    plt.grid(axis="y", linestyle="--", alpha=0.6)
+    plt.tight_layout()
+    plt.show()
