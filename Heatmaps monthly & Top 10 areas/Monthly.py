@@ -3,7 +3,7 @@ import pandas as pd
 import folium
 from folium.plugins import HeatMap
 
-base_path = r"C:\Users\20230920\OneDrive - TU Eindhoven\TUE\Year 2\4rth Quarter\Multidiciplinary CBL\Metropolitan and city of london 22-25"
+base_path = r"Metropolitan and city of london 22-25"
 
 # Loop through all 12 months of 2022
 for month in range(1, 13):
