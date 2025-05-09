@@ -10,9 +10,9 @@ from shapely.geometry import MultiPolygon
 
 
 # Load ward shapefile
-wards = gpd.read_file("C:/Users/20231937/CBL - project/City of London - crime data/Wards-locations/London-wards-2018_ESRI/London_Ward.shp")
+wards = gpd.read_file("data/boundaries/ward boundaries 2018/London_Ward_CityMerged.shp")
 
-base_dir = "C:/Users/20231937/CBL - project/City of London - crime data/2022-03 - 2025-02"
+base_dir = "data/crime 2022-2025"
 
 # Get all folder names inside that directory (e.g., '2022-03', '2022-04', ...)
 folders = [f for f in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, f))]

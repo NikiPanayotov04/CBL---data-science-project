@@ -5,7 +5,7 @@ import matplotlib.dates as mdates
 
 
 # Path to your root directory (adjust this)
-root_dir = 'C:/Users/20231937/CBL - project/City of London - crime data/2010-12 - 2025-02'
+root_dir = 'data/crime 2022-2025'
 
 # Store monthly burglary counts
 monthly_burglary_counts = []

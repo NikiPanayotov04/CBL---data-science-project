@@ -2,9 +2,9 @@ import geopandas as gpd
 import pandas as pd
 import matplotlib.pyplot as plt
 
-gdf = gpd.read_file("C:/Users/20231937/CBL - project/City of London - crime data/Wards-locations/London-wards-2018_ESRI/London_Ward.shp")
+gdf = gpd.read_file("data/boundaries/ward boundaries 2018/London_Ward_CityMerged.shp")
 
-imd_df = pd.read_excel("C:/Users/20231937/CBL - project/City of London - crime data/London wards id2019 summary measures.xlsx")
+imd_df = pd.read_excel("data/additional/processed/London wards id2019 summary measures.xlsx")
 
 
 # Plot
