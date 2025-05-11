@@ -6,13 +6,13 @@ import pandas as pd
 from shapely.geometry import Point
 
 # == Paths ==
-ROOT_DIR = Path('../data/boundaries')
+ROOT_DIR = Path('data/boundaries')
 GREATER_LONDON_DIR = ROOT_DIR / 'greater london boundary'
 BOROUGH_DIR = ROOT_DIR / 'borough boundaries 2011'
 WARD_DIR = ROOT_DIR / 'ward boundaries 2018'
 LSOA_DIR = ROOT_DIR / 'lsoa boundaries 2021'
-STOPS_PATH = Path('../data/additional/processed/stops_london.csv')
-OUTPUT_DIR = Path('../outputs/html')
+STOPS_PATH = Path('data/additional/processed/stops_london.csv')
+OUTPUT_DIR = Path('outputs/html')
 
 # == Load shapefiles ==
 # load the Greater London boundary shapefile
