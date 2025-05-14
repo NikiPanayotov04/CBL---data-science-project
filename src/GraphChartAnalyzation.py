@@ -51,7 +51,7 @@ plt.plot(burglary_df['Month'], burglary_df['Burglary Count'], marker='.', linest
 plt.gca().xaxis.set_major_locator(mdates.YearLocator())
 plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
 
-plt.title('Monthly Burglary Count in London (2010-2025)', fontsize=14)
+plt.title('Monthly Burglary Count in London (2022-2025)', fontsize=14)
 plt.xlabel('Year', fontsize=12)
 plt.ylabel('Burglary Count', fontsize=12)
 
