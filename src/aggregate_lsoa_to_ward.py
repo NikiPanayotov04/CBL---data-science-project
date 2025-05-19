@@ -3,10 +3,10 @@ import geopandas as gpd
 
 # == Shapefiles ==
 # load shapefiles
-london_boundary = gpd.read_file('../data/boundaries/greater london boundary/London_GLA_Boundary.shp')
-wards = gpd.read_file('../data/boundaries/ward boundaries 2018/London_Ward_CityMerged.shp')
+london_boundary = gpd.read_file('data/boundaries/greater london boundary/London_GLA_Boundary.shp')
+wards = gpd.read_file('data/boundaries/ward boundaries 2018/London_Ward_CityMerged.shp')
 centroids = gpd.read_file(
-    '../data/raw/LLSOA_Dec_2021_PWC_for_England_and_Wales_2022_4975765757449378936/LSOA_PopCentroids_EW_2021_V3.shp')
+    'data/raw/LLSOA_Dec_2021_PWC_for_England_and_Wales_2022_4975765757449378936/LSOA_PopCentroids_EW_2021_V3.shp')
 centroids = centroids.to_crs(london_boundary.crs)
 
 # filter centroids that fall within the same london boundary
@@ -27,10 +27,10 @@ lsoa_to_ward.loc[lsoa_to_ward['Ward name'] == 'Castle Baynard', 'Ward name'] = '
 
 # == Join Ward to Census Data ==
 # load and merge census data, ensure numerical values
-df_age_london = pd.read_csv('../data/processed/lsoa level/age_london.csv')
-df_accom_type = pd.read_csv('../data/processed/lsoa level/accommodation_type_london.csv')
-df_occup = pd.read_csv('../data/processed/lsoa level/dwelling_occupancy_london.csv')
-df_house_comp = pd.read_csv('../data/processed/lsoa level/household_composition_london.csv')
+df_age_london = pd.read_csv('data/processed/lsoa level/age_london.csv')
+df_accom_type = pd.read_csv('data/processed/lsoa level/accommodation_type_london.csv')
+df_occup = pd.read_csv('data/processed/lsoa level/dwelling_occupancy_london.csv')
+df_house_comp = pd.read_csv('data/processed/lsoa level/household_composition_london.csv')
 
 df_census = df_age_london.merge(df_accom_type, on=['LSOA code', 'LSOA name']) \
                          .merge(df_occup, on=['LSOA code', 'LSOA name']) \
