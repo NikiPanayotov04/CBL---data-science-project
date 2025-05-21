@@ -1,0 +1,71 @@
+/* Test style to verify CSS loading */
+body {
+  background-color: #343461 !important;
+  color: #f1f1f1 !important;
+}
+/* === Sidebar === */
+.sidebar {
+  background-color: #1e1e2f !important;
+  height: 100vh;
+  padding: 20px;
+  border-right: 2px solid #444;
+}
+
+.sidebar h4 {
+  color: #ffffff;
+  margin-bottom: 1rem;
+}
+
+.nav-link {
+  color: #bbb !important;
+  padding: 10px;
+  margin-bottom: 5px;
+  border-radius: 5px;
+}
+
+.nav-link.active {
+  background-color: #17a2b8 !important;
+  color: #fff !important;
+}
+
+/* === Card Styling === */
+.card {
+  background-color: #1e1e2f;
+  border: none;
+  border-radius: 10px;
+}
+
+.card-title {
+  color: #ccc;
+  font-size: 4rem;
+  margin: auto;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.card-text {
+  color: #ccc;
+  text-align: center;
+}
+
+.problem-box {
+  background-color: #2a2a40;
+  padding: 1rem;
+  border-radius: 8px;
+  color: #eee;
+  display: flex;
+  align-items: center;
+}
+
+.dash-error-message {
+  display: none !important;
+}
+
+.badge-number {
+  background-color: #5f4b8b;
+  color: white;
+  font-weight: bold;
+  padding: 0.6rem 1.1rem;
+  border-radius: 10px;
+  font-size: 1.2rem;
+}
