@@ -95,7 +95,7 @@ def match_deprivation_to_2021():
     df_dep_11_london = pd.merge(df_dep_11_london, pop_df, on="LSOA code (2011)")
 
     # load df_lookup
-    df_lookup = pd.read_csv('data/lookups/Look up LSOA 2011 to LSOA 2021.csv', usecols=[0, 2])
+    df_lookup = pd.read_csv('data/lookups/look up LSOA 2011 to LSOA 2021.csv', usecols=[0, 2])
 
     # merge the lookup table with the deprivation data (mapping 2011 LSOA to 2021 LSOA)
     merged = pd.merge(df_lookup, df_dep_11_london, left_on='LSOA11CD', right_on='LSOA code (2011)', how='right')
@@ -116,12 +116,13 @@ def match_deprivation_to_2021():
     # combine into a DataFrame
     df_dep_21_london = pd.DataFrame(results)
     return df_dep_21_london
-def save_to_processed(df, filename):
-    """Save dataframe to the processed directory, creating directory if necessary."""
-    processed_path = Path('data/processed/lsoa level') / filename
-    processed_path.parent.mkdir(parents=True, exist_ok=True)  # Create the directory if it does not exist
-    df.to_csv(processed_path, index=False)
-    print(f"Saved {filename} to processed directory.")
+
+def save_to_processed_parquet(df, filename):
+    """Save dataframe to the processed directory in parquet format, creating directory if necessary."""
+    processed_path = Path('data/processed') / filename
+    processed_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(processed_path, index=False)
+    print(f"Saved {filename} to processed directory in parquet format.")
 
 # == Load and Preprocess ==
 df_lsoa_21 = load_csv('data/lookups/LSOA names and codes 2021.csv', usecols=[0, 1])
@@ -153,14 +154,29 @@ print("Processing stops data...")
 df_stops = pd.read_csv('data/raw/Stops.csv', low_memory=False, usecols=['ATCOCode', 'CommonName', 'NptgLocalityCode', 'LocalityName', 'Longitude', 'Latitude', 'Status'])
 df_stops_london = df_stops[df_stops['ATCOCode'].str.startswith('490')]  # ATCO Codes in London start with 490
 
-# == Save Files ==
-save_to_processed(df_age_london, 'age_london.csv')
-save_to_processed(df_household_london, 'household_composition_london.csv')
-save_to_processed(df_occupancy_london, 'dwelling_occupancy_london.csv')
-save_to_processed(df_accommodation_london, 'accommodation_type_london.csv')
-save_to_processed(df_dep_11_to_21_london, 'deprivation_11_to_21_london.csv')
-save_to_processed(df_stops_london, 'stops_london.csv')
+# == Merge Census Data ==
+df_census_london = (
+    df_age_london
+    .merge(df_household_london, on=['LSOA code', 'LSOA name'], how='inner')
+    .merge(df_accommodation_london, on=['LSOA code', 'LSOA name'], how='inner')
+    .merge(df_occupancy_london, on=['LSOA code', 'LSOA name'], how='inner')
+)
+# convert all non-id columns to float
+for col in df_census_london.columns:
+    if col not in ['LSOA code', 'LSOA name']:
+        df_census_london[col] = pd.to_numeric(df_census_london[col], errors='coerce')
 
+# == Match LSOA to ward ==
+df_lsoa_to_ward = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
+df_lsoa_to_ward.rename(columns={'LSOA21CD': 'LSOA code', 'WD24CD': 'Ward code', 'WD24NM': 'Ward name'}, inplace=True)
+# include ward name
+df_census_london = df_census_london.merge(df_lsoa_to_ward, on='LSOA code')
+df_dep_11_to_21_london = df_dep_11_to_21_london.merge(df_lsoa_to_ward, on='LSOA code')
+
+# == Save Files ==
+save_to_processed_parquet(df_census_london, 'census_lsoa.parquet')
+save_to_processed_parquet(df_dep_11_to_21_london, 'deprivation_lsoa.parquet')
+save_to_processed_parquet(df_stops_london, 'stops_lsoa.parquet')
 
 
 
