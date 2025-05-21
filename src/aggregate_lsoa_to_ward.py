@@ -2,7 +2,7 @@ import pandas as pd
 import geopandas as gpd
 
 comment = '''
-These are the datasets aggregated to ward. I have not decided to save them yet. But these can (and should) certainly 
+These are examples of the datasets aggregated to ward. I have not decided to save them (yet). But these can (and should) certainly 
 be used for feature engineering. 
 '''
 
@@ -11,6 +11,7 @@ gdf_ward_boundaries = gpd.read_file('data/boundaries/ward boundaries 2024/london
 
 # --- Load Census Data at LSOA Level ---
 df_census = pd.read_parquet('data/processed/census_lsoa.parquet')
+
 # Aggregate Census data by Ward (sum numeric columns)
 df_census_ward = df_census.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
 

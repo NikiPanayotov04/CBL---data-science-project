@@ -48,4 +48,4 @@ df_lsoa_to_ward.loc[is_city_2, 'WD24NM'] = 'City of London'
 df_lsoa_to_ward_merged = df_lsoa_to_ward[['LSOA21CD', 'WD24CD', 'WD24NM']]
 df_lsoa_to_ward_merged.to_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv', index=False)
 
-
+print('Updated to merged ward boundaries and lookup version.')

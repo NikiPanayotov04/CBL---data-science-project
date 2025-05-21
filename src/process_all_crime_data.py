@@ -1,53 +1,61 @@
 import pandas as pd
-from pathlib import Path
 import geopandas as gpd
+from pathlib import Path
+from shapely.geometry import Point
 
-def load_and_filter_burglary(crime_root_dir, lsoa_to_ward_df):
-    """Go through all crime folders and filter it for only burglary crimes."""
+def load_and_filter_burglary_spatial(crime_root_dir, gdf_ward_boundaries):
+    """Load burglary records and spatially join them with ward geometries."""
     crime_records = []
 
-    # walk through all year-month folders
+    # Loop through all year-month folders
     for folder in Path(crime_root_dir).glob("*/"):
         for file in folder.glob("*-street.csv"):
             print(f"Processing {file.name}")
             df = pd.read_csv(file, low_memory=False)
 
-            # filter only burglary crimes
-            df_burglary = df[df['Crime type'] == 'Burglary'].copy()
+            # Filter burglary only, drop missing coordinates
+            df = df[df['Crime type'] == 'Burglary'].copy()
+            df.dropna(subset=['Longitude', 'Latitude'], inplace=True)
 
-            # drop rows with missing LSOA code
-            df_burglary.dropna(subset=['LSOA code'], inplace=True)
+            # Convert to GeoDataFrame
+            geometry = [Point(xy) for xy in zip(df['Longitude'], df['Latitude'])]
+            gdf = gpd.GeoDataFrame(df, geometry=geometry, crs="EPSG:4326")
 
-            # merge with ward info
-            df_burglary = df_burglary.merge(lsoa_to_ward_df, on='LSOA code', how='left')
+            # Reproject to match ward boundaries CRS
+            gdf = gdf.to_crs(gdf_ward_boundaries.crs)
 
-            crime_records.append(df_burglary)
+            # Spatial join with ward polygons
+            gdf_joined = gpd.sjoin(gdf, gdf_ward_boundaries[['geometry', 'WD24CD', 'WD24NM']], how='inner', predicate='intersects')
 
-    # concatenate all months into one DataFrame
-    df_all_burglary = pd.concat(crime_records, ignore_index=True)
-    return df_all_burglary
+            # Rename for consistency
+            gdf_joined.rename(columns={'WD24CD': 'Ward code', 'WD24NM': 'Ward name'}, inplace=True)
 
-# Load LSOA-to-ward mapping
-df_lsoa_to_ward = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
-df_lsoa_to_ward.rename(columns={'LSOA21CD': 'LSOA code', 'WD24CD': 'Ward code', 'WD24NM': 'Ward name'}, inplace=True)
+            gdf_joined['Month'] = pd.to_datetime(gdf_joined['Month'])
 
-# Load crime data
-df_burglary = load_and_filter_burglary("data/crime 2022-2025", df_lsoa_to_ward)
+            # Keep only relevant columns
+            columns = list(df.columns) + ['Ward code', 'Ward name']
 
-# Strictly filter only London crimes using ward codes from shapefile
+            crime_records.append(gdf_joined[columns])
+
+    # Concatenate all months
+    gdf_all = pd.concat(crime_records, ignore_index=True)
+    return gdf_all
+
+# === Load ward polygons ===
 gdf_ward_boundaries = gpd.read_file('data/boundaries/ward boundaries 2024/london_wards_merged.shp')
-gdf_ward_boundaries.rename(columns={'WD24CD': 'Ward code'}, inplace=True)  # Ensure consistency
+gdf_ward_boundaries = gdf_ward_boundaries.to_crs(epsg=27700)  # British National Grid
 
-# Get list of valid London ward codes
-london_ward_codes = set(gdf_ward_boundaries['Ward code'].unique())
+# === Load and process burglary records ===
+df_burglaries = load_and_filter_burglary_spatial("data/crime 2022-2025", gdf_ward_boundaries)
 
-# Filter only burglary crimes within London wards
-df_burglary_london_only = df_burglary[df_burglary['Ward code'].isin(london_ward_codes)].copy()
+# Based on manual inspection, these two wards should be left out (as they still fall outside of London for some reason)
+df_burglaries = df_burglaries[~df_burglaries['Ward code'].isin(['E05012399', 'E05015729'])]
 
-# Save filtered data
+# === Save to Parquet ===
+columns = ['Crime ID', 'Month', 'Reported by', 'Falls ']
 output_path = Path("data/processed/burglaries.parquet")
 output_path.parent.mkdir(parents=True, exist_ok=True)
-df_burglary_london_only.to_parquet(output_path, index=False)
+df_burglaries.to_parquet(output_path, index=False)
 
-print(f"Saved strict London-only burglary records to {output_path}")
+print(f"Saved burglary records to {output_path}")
 
