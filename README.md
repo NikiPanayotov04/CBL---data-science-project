@@ -22,3 +22,10 @@ Before running any script, you must manually download and install the required d
 
 Important:
 The paths to these files are currently hardcoded in the .py files. You will need to update the file paths in each script to match your local folder structure before running them.
+
+
+in order: 
+run merge_city_of_london.py. 
+run process_all_crime_data.py
+run process_additional_datasets.py
+
