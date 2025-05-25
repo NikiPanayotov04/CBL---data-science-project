@@ -37,23 +37,23 @@ def load_crime_data(month=None):
         print(f"Error loading crime data: {str(e)}")
         return pd.DataFrame()
 
-def load_demographic_data():
+def load_deprivation_data():
     try:
-        file_path = 'data/processed/lsoa level/deprivation_11_to_21_london.csv'
+        file_path = 'data/processed/deprivation_lsoa.parquet'
         if os.path.exists(file_path):
-            return pd.read_csv(file_path)
+            return pd.read_parquet(file_path)
         else:
             print(f"File not found: {file_path}")
             return pd.DataFrame()
     except Exception as e:
-        print(f"Error loading demographic data: {str(e)}")
+        print(f"Error loading deprivation data: {str(e)}")
         return pd.DataFrame()
 
 def load_census_data():
     try:
-        file_path = 'data/processed/ward level/census_by_ward.csv'
+        file_path = 'data/processed/census_lsoa.parquet'
         if os.path.exists(file_path):
-            return pd.read_csv(file_path)
+            return pd.read_parquet(file_path)
         else:
             print(f"File not found: {file_path}")
             return pd.DataFrame()
@@ -63,11 +63,26 @@ def load_census_data():
 
 # Store initial data in memory
 crime_df = load_crime_data()
-demographic_df = load_demographic_data()
+deprivation_df = load_deprivation_data()
 census_df = load_census_data()
 
 # Sidebar menu
-
+sidebar = dbc.Col([
+    html.H4("Menu", className="text-white mt-4"),
+    html.Hr(),
+    dbc.Nav([
+        dbc.NavLink("Home", href="/", active="exact", className="nav-link"),
+        dbc.NavLink("Data Explorer", href="/data", active="exact", className="nav-link"),
+        html.Div(id="data-explorer-submenu", style={"display": "none"}, children=[
+            dbc.NavLink("Crime Data", href="/data/crime", active="exact", className="nav-link ms-3"),
+            dbc.NavLink("Deprivation Index", href="/data/deprivation", active="exact", className="nav-link ms-3"),
+            dbc.NavLink("Census Data", href="/data/census", active="exact", className="nav-link ms-3"),
+        ]),
+        dbc.NavLink("Forecasting", href="/forecast", active="exact", className="nav-link"),
+        dbc.NavLink("Map View", href="/map", active="exact", className="nav-link"),
+        dbc.NavLink("About", href="/about", active="exact", className="nav-link")
+    ], vertical=True, pills=True),
+], width=2, className="sidebar")
 
 # Main content area
 def homepage():
@@ -116,11 +131,14 @@ def homepage():
                 html.H5("Contributors"),
                 html.Ul([
                     html.Li("Niki Panayotov"),
-                    html.Li("Team members from Trinity College London"),
+                    html.Li("Jan Galic"),
+                    html.Li("Pantelis Hadjipanayiotou"),
+                    html.Li("Trinity Jan"),
+                    html.Li("Team members from Eindhoven University of Technology"),
                 ])
             ]),
 
-            html.Footer("Project developed by Niki Panayotov and team", 
+            html.Footer("Project developed by team 31(Fantastic Four):", 
                         style={"fontSize": "0.85rem", "color": "#aaa", "marginTop": "2rem", "textAlign": "center"})
         ])
     ])
@@ -141,7 +159,7 @@ def data_explorer():
             html.P("Select a dataset below to begin exploring:", className="card-text text-center"),
             html.Div([
                 dbc.Button("Crime Data", href="/data/crime", color="primary", className="me-3"),
-                dbc.Button("Demographic Data", href="/data/demographic", color="primary", className="me-3"),
+                dbc.Button("Deprivation Data", href="/data/deprivation", color="primary", className="me-3"),
                 dbc.Button("Census Data", href="/data/census", color="primary", className="me-3"),
             ], className="mt-4 text-center")
         ])
@@ -161,7 +179,7 @@ def crime_data():
                         {'label': f"{year}-{month:02d}", 'value': f"{year}-{month:02d}"}
                         for year in range(2022, 2026)
                         for month in range(1, 13)
-                        if not (year == 2022 and month < 4) and not (year == 2025 and month > 2)  # Only show from Apr 2022 to Feb 2025
+                        if not (year == 2022 and month < 4) and not (year == 2025 and month > 3)  # Only show from Apr 2022 to Feb 2025
                     ],
                     value="2022-04",  # Default value set to April 2022
                     clearable=False,
@@ -178,50 +196,82 @@ def crime_data():
         ])
     ])
 
-def demographic_data():
+def deprivation_data():
     return dbc.Card([
         dbc.CardBody([
-            html.H1("Demographic Data", className="card-title"),
-            html.P("Explore different demographic datasets for London:", className="card-text text-center mb-4"),
+            html.H1("Deprivation Index", className="card-title"),
+            html.P("Explore deprivation index dataset for London wards:", className="card-text text-center mb-4"),
             
-            # Tabs for different datasets
-            dbc.Tabs([
-                # Deprivation Tab
-                dbc.Tab([
-                    html.Div([
-                        html.H4("Deprivation Indices (2011-2021)", className="mt-3 text-center"),
-                        html.P("This dataset contains deprivation indices for London areas from 2011 to 2021, including income, employment, health, education, and living environment indicators.", className="card-text text-center"),
-                        html.Div([
-                            dbc.Button("Show Deprivation Data", id="btn-deprivation", color="primary", className="mt-3")
-                        ], className="text-center"),
-                        html.Div(id="deprivation-data-table", className="mt-3")
-                    ], className="p-3")
-                ], label="Deprivation Indices", label_style={"textAlign": "center"}),
+            html.Div([
+                html.P("This dataset contains deprivation indices for London areas from 2011 to 2021, including income, employment, health, education, and living environment indicators.", className="card-text text-center"),
                 
-                # Household Composition Tab
-                dbc.Tab([
-                    html.Div([
-                        html.H4("Household Composition", className="mt-3 text-center"),
-                        html.P("Data about household structures in London, including family types, household sizes, and living arrangements.", className="card-text text-center"),
-                        html.Div([
-                            dbc.Button("Show Household Data", id="btn-household", color="primary", className="mt-3")
-                        ], className="text-center"),
-                        html.Div(id="household-data-table", className="mt-3")
-                    ], className="p-3")
-                ], label="Household Composition", label_style={"textAlign": "center"}),
+                # Add attribute descriptions
+                html.Div([
+                    html.H4("Data Attributes", className="mt-4 mb-3 text-start"),
+                    html.Ul([
+                        html.Li([
+                            html.Strong("Index of Multiple Deprivation (IMD): "),
+                            "Overall measure of relative deprivation combining all other domains. Higher scores indicate higher deprivation."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Income Domain: "),
+                            "Measures income deprivation including benefits, tax credits, and low income."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Employment Domain: "),
+                            "Measures employment deprivation including unemployment and incapacity benefits."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Education, Skills and Training: "),
+                            "Measures lack of attainment and skills in the local population."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Health Deprivation and Disability: "),
+                            "Measures morbidity, disability, and premature mortality."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Crime Domain: "),
+                            "Measures recorded crime rates for violence, burglary, theft, and criminal damage."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Barriers to Housing and Services: "),
+                            "Measures physical and financial accessibility to housing and key local services."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Living Environment: "),
+                            "Measures quality of the local environment including air quality and housing conditions."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("LSOA code: "),
+                            "Lower Layer Super Output Area identifier - small area statistical geography."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Ward code & name: "),
+                            "Local authority ward identifier and name."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Ranks & Deciles: "),
+                            "Relative measures where 1 is most deprived and 10 is least deprived. Ranks show absolute position, deciles divide areas into 10 equal groups."
+                        ], className="text-start")
+                    ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"})
+                ], className="mb-4"),
                 
-                # Dwelling Occupancy Tab
-                dbc.Tab([
-                    html.Div([
-                        html.H4("Dwelling Occupancy", className="mt-3 text-center"),
-                        html.P("Information about housing occupancy patterns, including occupancy status, property types, and tenure.", className="card-text text-center"),
-                        html.Div([
-                            dbc.Button("Show Dwelling Data", id="btn-dwelling", color="primary", className="mt-3")
-                        ], className="text-center"),
-                        html.Div(id="dwelling-data-table", className="mt-3")
-                    ], className="p-3")
-                ], label="Dwelling Occupancy", label_style={"textAlign": "center"})
-            ], className="mt-3")
+                html.Div([
+                    dbc.Button("Show Deprivation Data", id="btn-deprivation", color="primary", className="mt-3")
+                ], className="text-center"),
+                html.Div(id="deprivation-data-table", className="mt-3"),
+                html.Div([
+                    dbc.Pagination(
+                        id="deprivation-pagination",
+                        max_value=1,  # Will be updated by callback
+                        first_last=True,
+                        previous_next=True,
+                        fully_expanded=False,
+                        size="sm",
+                        className="mt-3 justify-content-center"
+                    )
+                ], id="deprivation-pagination-container", style={"display": "none"})
+            ], className="p-3")
         ])
     ])
 
@@ -236,13 +286,23 @@ def census_data():
                 html.H4("About the Census Data", className="mt-3 text-center"),
                 html.P("This dataset provides comprehensive demographic information at the ward level, including:", className="card-text text-center"),
                 html.Ul([
-                    html.Li("Population demographics and age distribution", className="text-center"),
-                    html.Li("Ethnic composition and cultural diversity", className="text-center"),
-                    html.Li("Economic activity and employment status", className="text-center"),
-                    html.Li("Education levels and qualifications", className="text-center"),
-                    html.Li("Housing characteristics and tenure", className="text-center")
-                ], className="card-text mb-4", style={"listStylePosition": "inside", "paddingLeft": "0"}),
-                
+                        html.Li([
+                            html.Strong("Population Structure: "),
+                            "Detailed breakdown of population by age groups (under 15, 15-64, 65+)"
+                        ], className="text-center"),
+                        html.Li([
+                            html.Strong("Household Composition: "),
+                            "Information about household types including single-person households and family structures"
+                        ], className="text-center"),
+                        html.Li([
+                            html.Strong("Housing Types: "),
+                            "Distribution of different housing types (detached, semi-detached, terraced, flats) and occupancy status"
+                        ], className="text-center"),
+                        html.Li([
+                            html.Strong("Geographic Coverage: "),
+                            "Data available at both LSOA (Lower Layer Super Output Area) and ward levels across London"
+                        ], className="text-center")
+                    ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"}),
                 # Centered button
                 html.Div([
                     dbc.Button("Show Census Data", id="btn-census", color="primary", className="mt-3")
@@ -255,10 +315,74 @@ def census_data():
     ])
 
 def forecasting():
+    # Load ward information from the lookup file
+    try:
+        ward_df = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
+        # Get unique ward codes and names
+        ward_df = ward_df[['WD24CD', 'WD24NM']].drop_duplicates()
+        # Add placeholder columns for predictions and resource allocation
+        ward_df['Predicted Crime Count'] = ''
+        ward_df['Resource Allocation'] = ''
+        # Rename columns for display
+        ward_df.columns = ['Ward Code', 'Ward Name', 'Predicted Crime Count', 'Resource Allocation']
+    except Exception as e:
+        print(f"Error loading ward data: {str(e)}")
+        ward_df = pd.DataFrame(columns=['Ward Code', 'Ward Name', 'Predicted Crime Count', 'Resource Allocation'])
+
     return dbc.Card([
         dbc.CardBody([
-            html.H1("Forecasting", className="card-title"),
-            html.P("Predicted demand and resource allocation.", className="card-text")
+            html.H1("Forecasting", className="card-title text-center mb-4"),
+            html.P("This section will display predicted crime counts and recommended resource allocation for each ward in London.", className="card-text text-center mb-4"),
+            
+            # Description of the table
+            html.Div([
+                html.H4("Forecast Data", className="mt-3 text-center"),
+                html.P("The table below shows ward-level predictions and resource allocation recommendations. These will be populated once the forecasting model is implemented.", className="card-text text-center"),
+                
+                # Search and sort controls
+                html.Div([
+                    # Search field
+                    dbc.Input(
+                        id="ward-search",
+                        type="text",
+                        placeholder="Search by ward name...",
+                        className="mb-3",
+                        style={"maxWidth": "300px", "margin": "0 auto"}
+                    ),
+                    
+                    # Sort radio buttons
+                    html.Div([
+                        dbc.RadioItems(
+                            id="sort-options",
+                            options=[
+                                {"label": "No Sort", "value": "none"},
+                                {"label": "Sort by Predicted Crime Count", "value": "crime"},
+                                {"label": "Sort by Resource Allocation", "value": "resource"}
+                            ],
+                            value="none",
+                            inline=True,
+                            className="mb-3"
+                        )
+                    ], className="text-center")
+                ], className="text-center"),
+                
+                # Scrollable container for the table
+                html.Div([
+                    dbc.Table.from_dataframe(
+                        ward_df,
+                        striped=True,
+                        bordered=True,
+                        hover=True,
+                        responsive=True,
+                        className="table-dark mt-4",
+                        id="forecast-table"
+                    )
+                ], style={
+                    'height': '600px',  # Fixed height to show approximately 15 rows
+                    'overflowY': 'auto',  # Enable vertical scrolling
+                    'marginTop': '20px'
+                })
+            ], className="p-3")
         ])
     ])
 
@@ -273,29 +397,79 @@ def map_view():
 def about():
     return dbc.Card([
         dbc.CardBody([
-            html.H1("About", className="card-title"),
-            html.P("Project developed by Niki Panayotov and team.", className="card-text")
-        ])
+            html.H1("About", className="card-title text-center mb-4"),
+            
+            # Project Overview
+            html.Div([
+                html.H3("Project Overview", className="mb-3 text-center"),
+                html.P("This Police Demand Forecasting project aims to improve resource allocation and crime prevention strategies in London by analyzing burglary patterns and predicting future trends. The project combines crime data with demographic and deprivation information to provide actionable insights for law enforcement.", className="card-text text-center")
+            ], className="mb-4"),
+            
+            # Data Sources
+            html.Div([
+                html.H3("Data Sources", className="mb-3 text-center"),
+                html.Ul([
+                    html.Li("Crime data from Metropolitan Police (2022-2025)", className="text-center"),
+                    html.Li("Census data from the Office for National Statistics", className="text-center"),
+                    html.Li("Deprivation indices from the UK government", className="text-center"),
+                    html.Li("Ward boundaries and geographical data", className="text-center")
+                ], className="card-text", style={"listStyle": "none", "padding": "0"})
+            ], className="mb-4"),
+            
+            # Technical Stack
+            html.Div([
+                html.H3("Technical Stack", className="mb-3 text-center"),
+                html.Ul([
+                    html.Li("Python - Main programming language", className="text-center"),
+                    html.Li("Dash and Plotly - Interactive dashboard", className="text-center"),
+                    html.Li("Pandas - Data manipulation", className="text-center"),
+                    html.Li("GeoPandas - Spatial analysis", className="text-center"),
+                    html.Li("Other key libraries for data analysis and visualization", className="text-center")
+                ], className="card-text", style={"listStyle": "none", "padding": "0"})
+            ], className="mb-4"),
+            
+            # Key Features
+            
+            # Project Timeline
+            html.Div([
+                html.H3("Project Timeline", className="mb-3 text-center"),
+                html.Ul([
+                    html.Li("Project Start: 2025", className="text-center"),
+                    html.Li("Data Collection and Processing", className="text-center"),
+                    html.Li("Dashboard Development", className="text-center"),
+                    html.Li("Analysis and Forecasting Implementation", className="text-center"),
+                    html.Li("Future: Enhanced prediction models and real-time updates", className="text-center")
+                ], className="card-text", style={"listStyle": "none", "padding": "0"})
+            ], className="mb-4"),
+            
+            # Acknowledgments
+            html.Div([
+                html.H3("Acknowledgments", className="mb-3 text-center"),
+                html.P("Special thanks to:", className="card-text text-center"),
+                html.Ul([
+                    html.Li("Hetvi Chaniyara for the", className="text-center"),
+                    html.Li("Metropolitan Police for crime data", className="text-center"),
+                    html.Li("Office for National Statistics", className="text-center"),
+                    html.Li("Trinity College London for support and resources", className="text-center"),
+                    html.Li("All team members and contributors", className="text-center")
+                ], className="card-text", style={"listStyle": "none", "padding": "0"})
+            ], className="mb-4"),
+            
+            # Contact Information
+            html.Div([
+                html.H3("Contact", className="mb-3 text-center"),
+                html.P("For more information about this project, please contact:", className="card-text text-center"),
+                html.P("nikolapanayotov04@gmail.com", className="card-text text-center"),
+            ], className="mb-4"),
+            
+            # Footer
+            html.Footer("Project developed by team 31(Fantastic Four):", 
+                        style={"fontSize": "0.85rem", "color": "#aaa", "marginTop": "2rem", "textAlign": "center"})
+        ], style={"maxWidth": "800px", "margin": "0 auto"})  # Center the card body content
     ])
 
 
-sidebar = dbc.Col([
-    html.H4("Menu", className="text-white mt-4"),
-    html.Hr(),
-    dbc.Nav([
-        dbc.NavLink("Home", href="/", active="exact", className="nav-link"),
-        dbc.NavLink("Data Explorer", href="/data", active="exact", className="nav-link"),
-        dbc.NavLink("Crime Data", href="/data/crime", active="exact", className="nav-link ms-3"),
-        dbc.NavLink("Demographic Data", href="/data/demographic", active="exact", className="nav-link ms-3"),
-        dbc.NavLink("Census Data", href="/data/census", active="exact", className="nav-link ms-3"),
-        dbc.NavLink("Forecasting", href="/forecast", active="exact", className="nav-link"),
-        dbc.NavLink("Map View", href="/map", active="exact", className="nav-link"),
-        dbc.NavLink("About", href="/about", active="exact", className="nav-link")
-    ], vertical=True, pills=True),
-], width=2, className="sidebar")
-
 # Final layout with sidebar + content
-
 app.layout = dbc.Container([
     dcc.Location(id='url', refresh=False),  # Track URL
     
@@ -313,8 +487,8 @@ def display_page(pathname):
         return data_explorer()
     elif pathname == "/data/crime":
         return crime_data()
-    elif pathname == "/data/demographic":
-        return demographic_data()
+    elif pathname == "/data/deprivation":
+        return deprivation_data()
     elif pathname == "/data/census":
         return census_data()
     elif pathname == "/forecast":
@@ -340,13 +514,14 @@ def display_crime_data(month):
             year, month_num = map(int, month.split('-'))
             
             # Check if date is within valid range
-            if (year == 2022 and month_num < 4) or year < 2022 or (year == 2025 and month_num > 2) or year > 2025:
+            if (year == 2022 and month_num < 4) or year < 2022 or (year == 2025 and month_num > 3) or year > 2025:
                 return None, "Selected month is out of range. Please select a month between April 2022 and February 2025."
             
             # Load data for selected month
-            df = load_crime_data(month)
+            crime_df = load_crime_data(month)
+            filterd_crime_df = crime_df[crime_df["Crime type"] == "Burglary"]
             
-            if not df.empty:
+            if not crime_df.empty:
                 # Create attribute descriptions
                 attribute_descriptions = html.Div([
                     html.H4("Data Attributes", className="mt-4 mb-3 text-start"),
@@ -398,7 +573,7 @@ def display_crime_data(month):
                     html.Div([
                         attribute_descriptions,
                         dbc.Table.from_dataframe(
-                            df.head(10),
+                            filterd_crime_df.head(10),
                             striped=True,
                             bordered=True,
                             hover=True,
@@ -416,66 +591,53 @@ def display_crime_data(month):
 
 @app.callback(
     [Output("deprivation-data-table", "children"),
-     Output("household-data-table", "children"),
-     Output("dwelling-data-table", "children")],
+     Output("deprivation-pagination", "max_value"),
+     Output("deprivation-pagination-container", "style")],
     [Input("btn-deprivation", "n_clicks"),
-     Input("btn-household", "n_clicks"),
-     Input("btn-dwelling", "n_clicks")],
+     Input("deprivation-pagination", "active_page")],
     prevent_initial_call=True
 )
-def display_demographic_data(deprivation_clicks, household_clicks, dwelling_clicks):
-    # Initialize all outputs as None
-    deprivation_output = None
-    household_output = None
-    dwelling_output = None
-    
-    # Check which button was clicked
-    ctx = dash.callback_context
-    if not ctx.triggered:
-        return None, None, None
-    
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    n_clicks = ctx.triggered[0]['value']
+def display_deprivation_data(n_clicks, page):
+    if not n_clicks:
+        return None, 1, {"display": "none"}
     
     # Only show data on odd clicks
-    if n_clicks and n_clicks % 2 == 1:
-        try:
-            if button_id == "btn-deprivation":
-                df = pd.read_csv('data/processed/lsoa level/deprivation_11_to_21_london.csv')
-                if not df.empty:
-                    deprivation_output = dbc.Table.from_dataframe(
-                        df.head(10),
-                        striped=True,
-                        bordered=True,
-                        hover=True,
-                        responsive=True,
-                        className="table-dark"
-                    )
-            elif button_id == "btn-household":
-                df = pd.read_csv('data/processed/lsoa level/household_composition_london.csv')
-                if not df.empty:
-                    household_output = dbc.Table.from_dataframe(
-                        df.head(10),
-                        bordered=True,
-                        hover=True,
-                        responsive=True,
-                        className="table-dark"
-                    )
-            elif button_id == "btn-dwelling":
-                df = pd.read_csv('data/processed/lsoa level/dwelling_occupancy_london.csv')
-                if not df.empty:
-                    dwelling_output = dbc.Table.from_dataframe(
-                        df.head(10),
-                        striped=True,
-                        bordered=True,
-                        hover=True,
-                        responsive=True,
-                        className="table-dark"
-                    )
-        except Exception as e:
-            return html.Div(f"Error loading data: {str(e)}", className="text-danger"), None, None
-    
-    return deprivation_output, household_output, dwelling_output
+    if n_clicks % 2 == 1:
+        if not deprivation_df.empty:
+            # Calculate total number of pages (10 rows per page)
+            rows_per_page = 10
+            total_pages = (len(deprivation_df) + rows_per_page - 1) // rows_per_page
+            
+            # Get the current page (default to 1 if None)
+            current_page = page if page is not None else 1
+            
+            # Calculate start and end indices for the current page
+            start_idx = (current_page - 1) * rows_per_page
+            end_idx = min(start_idx + rows_per_page, len(deprivation_df))
+            
+            # Get the data for the current page
+            page_data = deprivation_df.iloc[start_idx:end_idx]
+            
+            return [
+                dbc.Table.from_dataframe(
+                    page_data,
+                    striped=True,
+                    bordered=True,
+                    hover=True,
+                    responsive=True,
+                    className="table-dark"
+                ),
+                total_pages,
+                {"display": "block"}
+            ]
+        else:
+            return [
+                html.Div("No deprivation data available", className="text-danger"),
+                1,
+                {"display": "none"}
+            ]
+    else:  # Hide data on even clicks
+        return None, 1, {"display": "none"}
 
 @app.callback(
     Output("census-data-table", "children"),
@@ -496,6 +658,53 @@ def display_census_data(n_clicks):
         else:
             return html.Div("No census data available", className="text-danger")
     else:  # Hide data on even clicks
+        return None
+
+# Add callback to control submenu visibility
+@app.callback(
+    Output("data-explorer-submenu", "style"),
+    Input("url", "pathname")
+)
+def toggle_data_explorer_submenu(pathname):
+    if pathname in ["/data", "/data/crime", "/data/deprivation", "/data/census"]:
+        return {"display": "block"}
+    return {"display": "none"}
+
+# Add callback for ward search and sorting
+@app.callback(
+    Output("forecast-table", "children"),
+    [Input("ward-search", "value"),
+     Input("sort-options", "value")]
+)
+def filter_and_sort_wards(search_value, sort_option):
+    try:
+        ward_df = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
+        ward_df = ward_df[['WD24CD', 'WD24NM']].drop_duplicates()
+        ward_df['Predicted Crime Count'] = ''
+        ward_df['Resource Allocation'] = ''
+        ward_df.columns = ['Ward Code', 'Ward Name', 'Predicted Crime Count', 'Resource Allocation']
+        
+        # Filter based on search
+        if search_value:
+            ward_df = ward_df[ward_df['Ward Name'].str.contains(search_value, case=False, na=False)]
+        
+        # Sort based on radio selection
+        if sort_option == "crime":
+            ward_df = ward_df.sort_values('Predicted Crime Count', ascending=False)
+        elif sort_option == "resource":
+            ward_df = ward_df.sort_values('Resource Allocation', ascending=False)
+        # If sort_option is "none", no sorting is applied
+        
+        return dbc.Table.from_dataframe(
+            ward_df,
+            striped=True,
+            bordered=True,
+            hover=True,
+            responsive=True,
+            className="table-dark mt-4"
+        )
+    except Exception as e:
+        print(f"Error in ward search/sort: {str(e)}")
         return None
 
 if __name__ == '__main__':
