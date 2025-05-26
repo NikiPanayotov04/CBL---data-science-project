@@ -6,6 +6,8 @@ import pandas as pd
 import plotly.express as px
 import os
 from datetime import datetime
+import plotly.graph_objects as go
+import geopandas as gpd
 
 
 app = dash.Dash(
@@ -387,10 +389,116 @@ def forecasting():
     ])
 
 def map_view():
+    try:
+        gdf_wards = gpd.read_file("data/boundaries/ward boundaries 2024/london_wards_merged.shp").to_crs("EPSG:4326")
+        df_burglaries = pd.read_parquet('data/processed/burglaries.parquet')
+        df_burglaries = df_burglaries[~df_burglaries['Ward code'].isin(['E05012399', 'E05015729'])]
+    except Exception as e:
+        return dbc.Alert(f"Error loading map data: {str(e)}", color="danger")
+
     return dbc.Card([
         dbc.CardBody([
             html.H1("Map View", className="card-title"),
-            html.P("Geospatial analysis of crime patterns.", className="card-text")
+            html.P("Geospatial analysis of crime patterns.", className="card-text"),
+            dcc.Store(id="selected-ward"),
+            
+            # 🟣 WARD DETAILS SECTION ABOVE MAP
+            html.Div(id="ward-details", className="mb-4"),
+
+            # 🟣 FILTERS ABOVE MAP
+            html.Div([
+                html.Label("Filters"),
+                dcc.Checklist(
+                    id="map-filters",
+                    options=[
+                        {"label": "IMD", "value": "imd"},
+                        {"label": "Transportation Stops", "value": "transport"},
+                        {"label": "Age", "value": "age"},
+                        {"label": "Household Composition", "value": "household"},
+                        {"label": "Accommodation Type", "value": "accommodation"}
+                    ],
+                    value=["imd"]
+                )
+            ], className="filters mb-4"),
+
+            # 🟣 MAP
+            dcc.Graph(id="main-map", style={"height": "800px", "width": "100%"})
+        ])
+    ])
+
+
+
+@app.callback(
+    Output("main-map", "figure"),
+    [Input("main-map", "clickData"),
+     Input("map-filters", "value")]
+)
+def update_map(clickData, selected_filters):
+    import json
+
+    # Load and merge data
+    try:
+        gdf_wards = gpd.read_file("data/boundaries/ward boundaries 2024/london_wards_merged.shp").to_crs("EPSG:4326")
+        df_burglaries = pd.read_parquet('data/processed/burglaries.parquet')
+        df_burglaries = df_burglaries[~df_burglaries['Ward code'].isin(['E05012399', 'E05015729'])]
+        merged = gdf_wards.merge(df_burglaries, left_on="WD24CD", right_on="Ward code")
+    except Exception as e:
+        return px.scatter_mapbox(title=f"Error loading data: {str(e)}")
+
+    # Handle ward selection
+    selected_ward = None
+    if clickData and "points" in clickData:
+        selected_ward = clickData["points"][0].get("location")
+
+    # Mark selected
+    merged["highlight"] = merged["WD24CD"].apply(lambda x: "Selected Ward" if x == selected_ward else "Other Wards")
+
+    # Convert GeoDataFrame to GeoJSON
+    geojson = json.loads(gdf_wards.to_crs("EPSG:4326").to_json())
+
+    # Create the choropleth map
+    fig = px.choropleth_mapbox(
+        merged,
+        geojson=geojson,
+        locations="WD24CD",
+        featureidkey="properties.WD24CD",
+        color="highlight",
+        color_discrete_map={
+            "Other Wards": "#672DAA",
+            "Selected Ward": "#C7C73B"
+        },
+        mapbox_style="carto-positron",
+        center={"lat": 51.5, "lon": -0.1},
+        zoom=9,
+        opacity=0.6,
+        hover_name="WD24NM",  # Show ward name
+    )
+
+    fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+
+    return fig
+
+@app.callback(
+    Output("ward-details", "children"),
+    Input("main-map", "clickData")
+)
+def update_ward_details(clickData):
+    if not clickData or "points" not in clickData:
+        return dbc.Card([
+            dbc.CardBody([
+                html.P("Select ward on the map to inspect details.", className="text-muted mb-0")
+            ])
+        ])
+
+    ward_code = clickData["points"][0].get("location")
+    ward_name = clickData["points"][0].get("hovertext", "Unknown Ward")
+
+    return dbc.Card([
+        dbc.CardBody([
+            html.H4(ward_name, className="card-title"),
+            html.P("Predicted Crimes: 123", className="card-text"),  # Placeholder
+            html.P("Recommended Resource Allocation: 2 patrol units", className="card-text"),  # Placeholder
+            dbc.Button("Inspect Details", id="inspect-details-btn", color="primary", className="mt-2")
         ])
     ])
 
