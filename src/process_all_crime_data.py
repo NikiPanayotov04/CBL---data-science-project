@@ -48,9 +48,6 @@ gdf_ward_boundaries = gdf_ward_boundaries.to_crs(epsg=27700)  # British National
 # === Load and process burglary records ===
 df_burglaries = load_and_filter_burglary_spatial("data/crime 2022-2025", gdf_ward_boundaries)
 
-# Based on manual inspection, these two wards should be left out (as they still fall outside of London for some reason)
-df_burglaries = df_burglaries[~df_burglaries['Ward code'].isin(['E05012399', 'E05015729'])]
-
 # === Save to Parquet ===
 columns = ['Crime ID', 'Month', 'Reported by', 'Falls ']
 output_path = Path("data/processed/burglaries.parquet")
