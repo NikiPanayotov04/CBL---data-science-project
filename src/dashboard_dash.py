@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 import plotly.graph_objects as go
 import geopandas as gpd
+import json
 
 
 app = dash.Dash(
@@ -400,7 +401,7 @@ def map_view():
                 dbc.Col(html.Div(id="ward2-details"), md=6)
             ], className="mb-4"),
 
-            # Filter section
+            # Filters section
             dbc.Row([
                 dbc.Col(
                     [
@@ -447,8 +448,7 @@ def map_view():
     ])
 
 # Callbacks for clickable map and ward details
-def update_map(clickData, selected_filter, gdf_wards, df_burglaries, deprivation_df=None):
-    import json
+def update_map(clickData, selected_filter, gdf_wards, df_burglaries, deprivation_df):
 
     selected_ward = None
     if clickData and "points" in clickData:
@@ -467,21 +467,25 @@ def update_map(clickData, selected_filter, gdf_wards, df_burglaries, deprivation
         if 'Ward name_x' in merged.columns and 'Ward name_y' in merged.columns:
             merged = merged.drop(columns=["Ward name_x"])
             merged = merged.rename(columns={"Ward name_y": "Ward name"})
-        color_col = "imd_score"
-        fig = px.choropleth_mapbox(
-            merged,
-            geojson=merged.geometry.__geo_interface__,
-            locations=merged.index,
-            color=color_col,
-            color_continuous_scale="YlOrRd",
-            mapbox_style="carto-positron",
-            zoom=9,
-            center={"lat": 51.5074, "lon": -0.1278},  # Adjust to your location
-            opacity=0.7,
-            hover_name="WD24CD",
-            hover_data=["imd_score", "Ward name"]
-        )
+        
+        merged["centroid"] = merged.geometry.centroid
+        merged["lon"] = merged["centroid"].x
+        merged["lat"] = merged["centroid"].y
+        merged = merged.to_crs("EPSG:4326")
 
+        fig = px.scatter_mapbox(
+            merged,
+            lat="lat",
+            lon="lon",
+            color="imd_score",
+            color_continuous_scale="YlOrRd",
+            size_max=15,
+            zoom=9,
+            mapbox_style="carto-positron",
+            hover_name="WD24CD",
+            hover_data=["imd_score", "Ward name"],
+            opacity=0.7
+        )
     else:
         # Fallback: highlight clicked ward
         merged["highlight"] = merged["WD24CD"].apply(
