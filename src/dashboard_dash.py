@@ -6,6 +6,9 @@ import pandas as pd
 import plotly.express as px
 import os
 from datetime import datetime
+import plotly.graph_objects as go
+import geopandas as gpd
+import json
 
 
 app = dash.Dash(
@@ -390,9 +393,180 @@ def map_view():
     return dbc.Card([
         dbc.CardBody([
             html.H1("Map View", className="card-title"),
-            html.P("Geospatial analysis of crime patterns.", className="card-text")
+            html.P("Geospatial analysis of crime patterns.", className="card-text"),
+            
+            # Ward details section
+            dbc.Row([
+                dbc.Col(html.Div(id="ward1-details"), md=6),
+                dbc.Col(html.Div(id="ward2-details"), md=6)
+            ], className="mb-4"),
+
+            # Filters section
+            dbc.Row([
+                dbc.Col(
+                    [
+                        html.Label("Filters for Map 1"),
+                        dcc.Dropdown(
+                            id="filter1",
+                            options=[
+                                {"label": "Select a filter", "value": None},
+                                {"label": "IMD", "value": "imd"},
+                                {"label": "Transportation Stops", "value": "transport"},
+                                {"label": "Age", "value": "age"},
+                                {"label": "Household Composition", "value": "household"},
+                                {"label": "Accommodation Type", "value": "accommodation"}
+                            ],
+                            value=None
+                        )
+                    ]
+               , md=6),
+                dbc.Col(
+                    [
+                        html.Label("Filters for Map 2"),
+                        dcc.Dropdown(
+                            id="filter2",
+                            options=[
+                                {"label": "Select a filter", "value": None},
+                                {"label": "IMD", "value": "imd"},
+                                {"label": "Transportation Stops", "value": "transport"},
+                                {"label": "Age", "value": "age"},
+                                {"label": "Household Composition", "value": "household"},
+                                {"label": "Accommodation Type", "value": "accommodation"}
+                            ],
+                            value=None
+                        )
+                    ]
+               , md=6)
+            ], className="filters mb-4"),
+
+            # Map component
+            dbc.Row([
+                dbc.Col(dcc.Graph(id="map1", style={"height": "600px", "width": "100%"}), md=6),
+                dbc.Col(dcc.Graph(id="map2", style={"height": "600px", "width": "100%"}), md=6)
+            ])
         ])
     ])
+
+# Callbacks for clickable map and ward details
+def update_map(clickData, selected_filter, gdf_wards, df_burglaries, deprivation_df):
+
+    selected_ward = None
+    if clickData and "points" in clickData:
+        selected_ward = clickData["points"][0].get("location")
+
+    merged = gdf_wards.merge(df_burglaries, left_on="WD24CD", right_on="Ward code", how="left")
+
+    if selected_filter == "imd" and deprivation_df is not None:
+        # Standardize column names
+        deprivation_df = deprivation_df.rename(columns={
+            "Ward code": "WD24CD",
+            "Index of Multiple Deprivation (IMD) Score": "imd_score"
+        })
+        merged = merged.merge(deprivation_df, on="WD24CD", how="left")
+        # Drop one of the duplicate 'Ward name' columns and rename the other
+        if 'Ward name_x' in merged.columns and 'Ward name_y' in merged.columns:
+            merged = merged.drop(columns=["Ward name_x"])
+            merged = merged.rename(columns={"Ward name_y": "Ward name"})
+        
+        merged["centroid"] = merged.geometry.centroid
+        merged["lon"] = merged["centroid"].x
+        merged["lat"] = merged["centroid"].y
+        merged = merged.to_crs("EPSG:4326")
+
+        fig = px.scatter_mapbox(
+            merged,
+            lat="lat",
+            lon="lon",
+            color="imd_score",
+            color_continuous_scale="YlOrRd",
+            size_max=15,
+            zoom=9,
+            mapbox_style="carto-positron",
+            hover_name="WD24CD",
+            hover_data=["imd_score", "Ward name"],
+            opacity=0.7
+        )
+    else:
+        # Fallback: highlight clicked ward
+        merged["highlight"] = merged["WD24CD"].apply(
+            lambda x: "Selected Ward" if x == selected_ward else "Other Wards"
+        )
+        fig = px.choropleth_mapbox(
+            merged,
+            geojson=json.loads(gdf_wards.to_crs("EPSG:4326").to_json()),
+            locations="WD24CD",
+            featureidkey="properties.WD24CD",
+            color="highlight",
+            color_discrete_map={
+                "Other Wards": "#672DAA",
+                "Selected Ward": "#C7C73B"
+            },
+            mapbox_style="carto-positron",
+            center={"lat": 51.5, "lon": -0.1},
+            zoom=9,
+            opacity=0.6,
+            hover_name="WD24NM"
+        )
+
+    fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
+    return fig
+
+
+@app.callback(
+    [Output("ward1-details", "children"), Output("ward2-details", "children"), Output("map1", "figure"), Output("map2", "figure")],
+    [Input("filter1", "value"), Input("filter2", "value"), Input("map1", "clickData"), Input("map2", "clickData")]
+)
+
+def update_ward_details(filter1, filter2, clickData1, clickData2):
+    try:
+        gdf_wards = gpd.read_file("data/boundaries/ward boundaries 2024/london_wards_merged.shp").to_crs("EPSG:4326")
+        df_burglaries = pd.read_parquet('data/processed/burglaries.parquet')
+        df_burglaries = df_burglaries[~df_burglaries['Ward code'].isin(['E05012399', 'E05015729'])]
+    except Exception as e:
+        return dbc.Card(), dbc.Card(), px.scatter_mapbox(title=f"Error loading data: {str(e)}"), px.scatter_mapbox(title=f"Error loading data: {str(e)}")
+
+    ward1_details = dbc.Card([
+        dbc.CardBody([
+            html.P("Select ward on the map to inspect details.", className="text-muted mb-0")
+        ])
+    ])
+
+    ward2_details = dbc.Card([
+        dbc.CardBody([
+            html.P("Select ward on the map to inspect details.", className="text-muted mb-0")
+        ])
+    ])
+
+    if clickData1 and "points" in clickData1:
+        ward_code = clickData1["points"][0].get("location")
+        ward_name = clickData1["points"][0].get("hovertext", "Unknown Ward")
+        ward1_details = dbc.Card([
+            dbc.CardBody([
+                html.H4(ward_name, className="card-title"),
+                html.P("Predicted Crimes: 123", className="card-text"),  
+                html.P("Recommended Resource Allocation: 2 patrol units", className="card-text"),
+                dbc.Button("Inspect Details", id="inspect-details-btn", color="primary", className="mt-2")
+            ])
+        ])
+
+    if clickData2 and "points" in clickData2:
+        ward_code = clickData2["points"][0].get("location")
+        ward_name = clickData2["points"][0].get("hovertext", "Unknown Ward")
+        ward2_details = dbc.Card([
+            dbc.CardBody([
+                html.H4(ward_name, className="card-title"),
+                html.P("Predicted Crimes: 123", className="card-text"),
+                html.P("Recommended Resource Allocation: 2 patrol units", className="card-text"),
+                dbc.Button("Inspect Details", id="inspect-details-btn", color="primary", className="mt-2")
+            ])
+        ])
+
+    fig1 = update_map(clickData1, filter1, gdf_wards, df_burglaries, deprivation_df)
+    fig2 = update_map(clickData2, filter2, gdf_wards, df_burglaries, deprivation_df)
+
+
+
+    return ward1_details, ward2_details, fig1, fig2
 
 def about():
     return dbc.Card([
