@@ -1,34 +1,44 @@
-import dash
-from dash import html
-import dash_bootstrap_components as dbc
-from dash import dcc, html, Input, Output
-import pandas as pd
-import plotly.express as px
-import os
-from datetime import datetime
-import plotly.graph_objects as go
-import geopandas as gpd
-import json
+# Import required libraries
+import dash  # Main Dash framework
+from dash import html  # HTML components for Dash
+import dash_bootstrap_components as dbc  # Bootstrap components for styling
+from dash import dcc, html, Input, Output  # Dash core components and callbacks
+import pandas as pd  # Data manipulation
+import plotly.express as px  # Data visualization
+import os  # File system operations
+from datetime import datetime  # Date handling
+import plotly.graph_objects as go  # Advanced plotting
+import geopandas as gpd  # Geographic data handling
+import json  # JSON data handling
 
-
+# Initialize the Dash application
 app = dash.Dash(
     __name__,
     external_stylesheets=[
-        dbc.themes.CYBORG,
-        'assets/custom_dashboard_dash.css'  # Updated path to be relative to src directory
+        dbc.themes.CYBORG,  # Dark theme for the dashboard
+        'assets/custom_dashboard_dash.css'  # Custom CSS file
     ],
-    suppress_callback_exceptions=True  # Add this line to suppress callback exceptions
+    suppress_callback_exceptions=True  # Suppress callback exceptions for dynamic layouts
 )
 app.title = "Police Forecasting Dashboard"
 
 # Data loading functions
 def load_crime_data(month=None):
+    """
+    Load crime data for a specific month.
+    
+    Args:
+        month (str, optional): Month in 'YYYY-MM' format. Defaults to most recent month.
+    
+    Returns:
+        pandas.DataFrame: Crime data for the specified month
+    """
     try:
         if month is None:
-            # Default to most recent month
+            # Default to most recent month if none specified
             month = "2022-04"
         
-        # Construct file path
+        # Construct file path for the specified month
         file_path = f'data/crime 2022-2025/{month}/{month}-metropolitan-street.csv'
         
         if os.path.exists(file_path):
@@ -41,6 +51,12 @@ def load_crime_data(month=None):
         return pd.DataFrame()
 
 def load_deprivation_data():
+    """
+    Load deprivation index data for London areas.
+    
+    Returns:
+        pandas.DataFrame: Deprivation data including IMD scores and domain indices
+    """
     try:
         file_path = 'data/processed/deprivation_lsoa.parquet'
         if os.path.exists(file_path):
@@ -53,6 +69,12 @@ def load_deprivation_data():
         return pd.DataFrame()
 
 def load_census_data():
+    """
+    Load census data for London areas.
+    
+    Returns:
+        pandas.DataFrame: Census data including population and demographic information
+    """
     try:
         file_path = 'data/processed/census_lsoa.parquet'
         if os.path.exists(file_path):
@@ -64,39 +86,46 @@ def load_census_data():
         print(f"Error loading census data: {str(e)}")
         return pd.DataFrame()
 
-# Store initial data in memory
-crime_df = load_crime_data()
-deprivation_df = load_deprivation_data()
-census_df = load_census_data()
-
-# Sidebar menu
+# Sidebar menu configuration
 sidebar = dbc.Col([
     html.H4("Menu", className="text-white mt-4"),
     html.Hr(),
     dbc.Nav([
+        # Main navigation links
         dbc.NavLink("Home", href="/", active="exact", className="nav-link"),
         dbc.NavLink("Data Explorer", href="/data", active="exact", className="nav-link"),
+        # Data Explorer submenu
         html.Div(id="data-explorer-submenu", style={"display": "none"}, children=[
             dbc.NavLink("Crime Data", href="/data/crime", active="exact", className="nav-link ms-3"),
             dbc.NavLink("Deprivation Index", href="/data/deprivation", active="exact", className="nav-link ms-3"),
             dbc.NavLink("Census Data", href="/data/census", active="exact", className="nav-link ms-3"),
+            dbc.NavLink("Summarized Data", href="/data/summary", active="exact", className="nav-link ms-3"),
         ]),
+        # Additional main navigation links
         dbc.NavLink("Forecasting", href="/forecast", active="exact", className="nav-link"),
         dbc.NavLink("Map View", href="/map", active="exact", className="nav-link"),
         dbc.NavLink("About", href="/about", active="exact", className="nav-link")
     ], vertical=True, pills=True),
 ], width=2, className="sidebar")
 
-# Main content area
+# Page layout functions
 def homepage():
+    """
+    Generate the homepage layout with project overview and key information.
+    
+    Returns:
+        dbc.Card: Homepage layout component
+    """
     return dbc.Card([
         dbc.CardBody([
+            # Title and welcome message
             html.H1("Automated Police Demand Forecasting", className="card-title"),
             html.P("Welcome to the Police Demand Forecasting Dashboard.", className="card-text"),
             html.H2("Problem Description", className="mb-4 mt-4"),
 
-            # Problem Items
+            # Problem statement boxes
             html.Div([
+                # High prevalence box
                 html.Div([
                     html.Span("1", className="badge-number me-3"),
                     html.Span([
@@ -105,6 +134,7 @@ def homepage():
                     ])
                 ], className="problem-box mb-3"),
 
+                # Low resolution rate box
                 html.Div([
                     html.Span("2", className="badge-number me-3"),
                     html.Span([
@@ -113,6 +143,7 @@ def homepage():
                     ])
                 ], className="problem-box mb-3"),
 
+                # Public trust box
                 html.Div([
                     html.Span("3", className="badge-number me-3"),
                     html.Span([
@@ -124,12 +155,12 @@ def homepage():
 
             html.Hr(),
 
-            # London Image
+            # London image
             html.Img(src="/assets/london_image.jpg", style={"width": "100%", "maxWidth": "800px", "margin": "20px auto", "display": "block"}),
 
             html.Hr(),
 
-            # Contributors
+            # Contributors section
             html.Div([
                 html.H5("Contributors"),
                 html.Ul([
@@ -141,29 +172,43 @@ def homepage():
                 ])
             ]),
 
+            # Footer
             html.Footer("Project developed by team 31(Fantastic Four):", 
                         style={"fontSize": "0.85rem", "color": "#aaa", "marginTop": "2rem", "textAlign": "center"})
         ])
     ])
 
 def data_explorer():
+    """
+    Generate the data explorer page layout with dataset descriptions and navigation buttons.
+    
+    Returns:
+        dbc.Card: Data explorer layout component
+    """
     return dbc.Card([
         dbc.CardBody([
+            # Title and description
             html.H1("Data Explorer", className="card-title"),
             html.P("Welcome to the Data Explorer section. Here you can access and analyze various datasets related to police demand forecasting in London.", className="card-text text-center"),
             html.P("Our datasets include:", className="card-text mt-4 text-center"),
+            
+            # Dataset list
             html.Div([
                 html.Ul([
                     html.Li("Crime Data: Monthly burglary statistics across London boroughs from 2022 to 2025", className="text-center"),
                     html.Li("Demographic Data: Information about population, household composition, and dwelling occupancy", className="text-center"),
-                    html.Li("Census Data: Ward-level demographic information from the latest census", className="text-center")
+                    html.Li("Census Data: Ward-level demographic information from the latest census", className="text-center"),
+                    html.Li("Summarized Data: Key insights and aggregated statistics from all datasets", className="text-center")
                 ], className="card-text mb-4", style={"listStyle": "none", "padding": "0"})
             ], className="d-flex justify-content-center"),
+            
+            # Navigation buttons
             html.P("Select a dataset below to begin exploring:", className="card-text text-center"),
             html.Div([
                 dbc.Button("Crime Data", href="/data/crime", color="primary", className="me-3"),
                 dbc.Button("Deprivation Data", href="/data/deprivation", color="primary", className="me-3"),
                 dbc.Button("Census Data", href="/data/census", color="primary", className="me-3"),
+                dbc.Button("Summarized Data", href="/data/summary", color="primary", className="me-3"),
             ], className="mt-4 text-center")
         ])
     ])
@@ -314,6 +359,161 @@ def census_data():
                 # Data table container
                 html.Div(id="census-data-table", className="mt-3")
             ], className="p-3")
+        ])
+    ])
+
+def summarized_data():
+    """
+    Generates a summary view of burglary statistics across London wards.
+    This function:
+    1. Loads the most recent crime data
+    2. Calculates ward-level statistics
+    3. Computes population-standardized rates
+    4. Displays the results in a dashboard format
+    """
+    # Load the most recent crime data
+    try:
+        # Generate list of available months from April 2022 to February 2025
+        months = [f"{year}-{month:02d}" for year in range(2022, 2026) 
+                 for month in range(1, 13) 
+                 if not (year == 2022 and month < 4) and not (year == 2025 and month > 3)]
+        
+        # Get the two most recent months for comparison
+        current_month = months[-1]  # Most recent month
+        previous_month = months[-2]  # Second most recent month
+        
+        # Load crime data for both months
+        current_data = load_crime_data(current_month)
+        previous_data = load_crime_data(previous_month)
+        
+        # Filter data to focus only on burglary incidents
+        current_burglaries = current_data[current_data["Crime type"] == "Burglary"]
+        previous_burglaries = previous_data[previous_data["Crime type"] == "Burglary"]
+        
+        # Load census data and calculate total population for each ward
+        census_df = load_census_data()
+        population_ward_df = census_df.groupby('Ward name')['Total population'].sum().reset_index()
+        
+        # Calculate burglary counts for each ward
+        # Merge census data with current burglaries to get ward-level statistics
+        ward_counts = pd.merge(census_df, current_burglaries, on='LSOA name', how='inner')
+        ward_counts = ward_counts.groupby('Ward name').size().reset_index(name='count')
+        
+        # Calculate population-standardized rates (burglaries per 1,000 people)
+        ward_stats = pd.merge(ward_counts, population_ward_df, on='Ward name', how='left')
+        ward_stats['rate_per_1000'] = (ward_stats['count'] / ward_stats['Total population']) * 1000
+        
+        # Sort wards by crime rate and format the statistics
+        ward_stats = ward_stats.sort_values('rate_per_1000', ascending=False)
+        ward_stats['rate_per_1000'] = ward_stats['rate_per_1000'].round(2)  # Round rates to 2 decimal places
+        ward_stats['count'] = ward_stats['count'].astype(int)  # Convert counts to integers
+        ward_stats['Total population'] = ward_stats['Total population'].astype(int)  # Convert population to integers
+        
+        # Calculate LSOA-level statistics
+        # Get the LSOA with the highest number of burglaries
+        lsoa_counts = current_burglaries.groupby('LSOA name').size().reset_index(name='count')
+        lsoa_counts = lsoa_counts.sort_values('count', ascending=False)
+        top_lsoa = lsoa_counts.iloc[0]  # Get the LSOA with most burglaries
+        
+        # Rename columns for better display in the table
+        ward_stats.columns = ['Ward Name', 'Burglary Count', 'Population', 'Rate per 1,000']
+        
+        # Calculate overall statistics
+        total_current = len(current_burglaries)  # Total burglaries in current month
+        total_previous = len(previous_burglaries)  # Total burglaries in previous month
+        total_growth = ((total_current - total_previous) / total_previous) * 100  # Calculate percentage change
+        
+    except Exception as e:
+        # Handle any errors in data processing
+        print(f"Error processing crime data: {str(e)}")
+        return dbc.Card([
+            dbc.CardBody([
+                html.H1("Summarized Data", className="card-title text-center mb-4"),
+                html.P("Error loading data. Please try again later.", className="text-danger text-center")
+            ])
+        ])
+
+    # Create the dashboard layout
+    return dbc.Card([
+        dbc.CardBody([
+            # Title and description
+            html.H1("Summarized Data", className="card-title text-center mb-4"),
+            html.P("Ward-level burglary statistics for the most recent month", className="card-text text-center mb-4"),
+            
+            # Time Period and Overview section
+            html.Div([
+                html.H4(f"Data Period: {current_month}", className="text-center text-muted mb-3"),
+                html.Div([
+                    html.Span(f"Total Burglaries: {total_current:,} ", className="me-4"),
+                    html.Span(
+                        f"Change from previous month: {total_growth:+.1f}%",
+                        className=f"text-{'success' if total_growth < 0 else 'danger'}"  # Green for decrease, red for increase
+                    )
+                ], className="text-center mb-4")
+            ]),
+            
+            # Top Areas Summary section - Shows most affected ward and LSOA
+            dbc.Row([
+                # Most affected ward card
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4("Most Affected Ward", className="text-center"),
+                            html.H2(ward_stats.iloc[0]['Ward Name'], className="text-center text-primary"),
+                            html.P(f"{ward_stats.iloc[0]['Burglary Count']} incidents", className="text-center"),
+                            html.P(f"Rate: {ward_stats.iloc[0]['Rate per 1,000']} per 1,000 people", className="text-center text-muted")
+                        ])
+                    ], className="mb-3 shadow-sm")
+                ], md=6),
+                # Most affected LSOA card
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H4("Most Affected Area (LSOA)", className="text-center"),
+                            html.H2(top_lsoa['LSOA name'], className="text-center text-primary"),
+                            html.P(f"{top_lsoa['count']} incidents", className="text-center")
+                        ])
+                    ], className="mb-3 shadow-sm")
+                ], md=6)
+            ], className="mb-4"),
+            
+            # Main table section - Shows ward-level statistics
+            html.Div([
+                dbc.Table.from_dataframe(
+                    ward_stats,
+                    striped=True,
+                    bordered=True,
+                    hover=True,
+                    responsive=True,
+                    className="table-dark mt-4"
+                )
+            ], style={
+                'height': '600px',  # Fixed height for the table
+                'overflowY': 'auto',  # Enable vertical scrolling
+                'marginTop': '20px'
+            }),
+            
+            # Key Insights section - Highlights important findings
+            html.Div([
+                html.H3("Key Insights", className="mb-3 text-center mt-4"),
+                html.Ul([
+                    # Insight about highest crime rate
+                    html.Li([
+                        html.Strong("Highest Rate: "),
+                        f"{ward_stats.iloc[0]['Ward Name']} has the highest burglary rate at {ward_stats.iloc[0]['Rate per 1,000']} per 1,000 people."
+                    ], className="mb-2"),
+                    # Insight about most incidents
+                    html.Li([
+                        html.Strong("Most Incidents: "),
+                        f"{ward_stats.loc[ward_stats['Burglary Count'].idxmax()]['Ward Name']} had the highest number of incidents with {ward_stats['Burglary Count'].max()} burglaries."
+                    ], className="mb-2"),
+                    # Insight about overall trend
+                    html.Li([
+                        html.Strong("Trend: "),
+                        f"Overall burglary incidents have {'decreased' if total_growth < 0 else 'increased'} by {abs(total_growth):.1f}% compared to the previous month."
+                    ], className="mb-2")
+                ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"})
+            ])
         ])
     ])
 
@@ -561,6 +761,7 @@ def update_ward_details(filter1, filter2, clickData1, clickData2):
             ])
         ])
 
+    deprivation_df = load_deprivation_data()
     fig1 = update_map(clickData1, filter1, gdf_wards, df_burglaries, deprivation_df)
     fig2 = update_map(clickData2, filter2, gdf_wards, df_burglaries, deprivation_df)
 
@@ -665,6 +866,8 @@ def display_page(pathname):
         return deprivation_data()
     elif pathname == "/data/census":
         return census_data()
+    elif pathname == "/data/summary":
+        return summarized_data()
     elif pathname == "/forecast":
         return forecasting()
     elif pathname == "/map":
@@ -774,7 +977,7 @@ def display_crime_data(month):
 def display_deprivation_data(n_clicks, page):
     if not n_clicks:
         return None, 1, {"display": "none"}
-    
+    deprivation_df = load_deprivation_data()
     # Only show data on odd clicks
     if n_clicks % 2 == 1:
         if not deprivation_df.empty:
@@ -819,6 +1022,7 @@ def display_deprivation_data(n_clicks, page):
     prevent_initial_call=True
 )
 def display_census_data(n_clicks):
+    census_df = load_census_data()
     if n_clicks and n_clicks % 2 == 1:  # Show data on odd clicks
         if not census_df.empty:
             return dbc.Table.from_dataframe(
