@@ -447,7 +447,7 @@ def about():
                 html.H3("Acknowledgments", className="mb-3 text-center"),
                 html.P("Special thanks to:", className="card-text text-center"),
                 html.Ul([
-                    html.Li("Hetvi Chaniyara for the", className="text-center"),
+                    html.Li("Hetvi Chaniyara for the guidance", className="text-center"),
                     html.Li("Metropolitan Police for crime data", className="text-center"),
                     html.Li("Office for National Statistics", className="text-center"),
                     html.Li("Trinity College London for support and resources", className="text-center"),
