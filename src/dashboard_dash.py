@@ -390,199 +390,142 @@ def forecasting():
         ])
     ])
 
+deprivation_df = load_deprivation_data()
+burglaries_df = pd.read_parquet("data/processed/burglaries.parquet")
+stop_counts_df = pd.read_csv("data/processed/stop_counts_per_ward.csv")
+gdf_wards = gpd.read_file("data/boundaries/ward boundaries 2024/london_wards_merged.shp").to_crs("EPSG:4326")
+
+# --- Map View Layout ---
 def map_view():
     return dbc.Card([
         dbc.CardBody([
             html.H1("Map View", className="card-title"),
             html.P("Geospatial analysis of crime patterns.", className="card-text"),
-            
-            # Ward details section
+
             dbc.Row([
                 dbc.Col(html.Div(id="ward1-details"), md=6),
                 dbc.Col(html.Div(id="ward2-details"), md=6)
             ], className="mb-4"),
 
-            dcc.Store(id="selected_ward1"),
-            dcc.Store(id="selected_ward2"),
-
-
-            # Filters section
             dbc.Row([
                 dbc.Col(
-                    [
-                        html.Label("Filters for Map 1"),
-                        dcc.Dropdown(
-                            id="filter1",
-                            options=[
-                                {"label": "Select a filter", "value": None},
-                                {"label": "IMD", "value": "imd"},
-                                {"label": "Transportation Stops", "value": "transport"},
-                                {"label": "Age", "value": "age"},
-                                {"label": "Household Composition", "value": "household"},
-                                {"label": "Accommodation Type", "value": "accommodation"}
-                            ],
-                            value=None
-                        )
-                    ]
-               , md=6),
+                    dcc.Loading(
+                        id="loading-map1",
+                        type="circle",
+                        children=dcc.Graph(id="map1", style={"height": "600px", "width": "100%"})
+                    ),
+                    md=6
+                ),
                 dbc.Col(
-                    [
-                        html.Label("Filters for Map 2"),
-                        dcc.Dropdown(
-                            id="filter2",
-                            options=[
-                                {"label": "Select a filter", "value": None},
-                                {"label": "IMD", "value": "imd"},
-                                {"label": "Transportation Stops", "value": "transport"},
-                                {"label": "Age", "value": "age"},
-                                {"label": "Household Composition", "value": "household"},
-                                {"label": "Accommodation Type", "value": "accommodation"}
-                            ],
-                            value=None
-                        )
-                    ]
-               , md=6)
-            ], className="filters mb-4"),
-
-            # Map component
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="map1", style={"height": "600px", "width": "100%"}), md=6),
-                dbc.Col(dcc.Graph(id="map2", style={"height": "600px", "width": "100%"}), md=6)
+                    dcc.Loading(
+                        id="loading-map2",
+                        type="circle",
+                        children=dcc.Graph(id="map2", style={"height": "600px", "width": "100%"})
+                    ),
+                    md=6
+                )
             ])
         ])
     ])
 
-# Callbacks for clickable map and ward details
-def update_map(selected_ward, selected_filter, gdf_wards, df_burglaries, deprivation_df):
+# --- Callback ---
+@app.callback(
+    [Output("ward1-details", "children"),
+     Output("ward2-details", "children"),
+     Output("map1", "figure"),
+     Output("map2", "figure")],
+    [Input("map1", "clickData"),
+     Input("map2", "clickData")]
+)
+def update_ward_details(clickData1, clickData2):
+    fig1 = update_map(clickData1, gdf_wards, burglaries_df)
+    fig2 = update_map(clickData2, gdf_wards, burglaries_df)
+
+    return (
+        generate_details(clickData1, deprivation_df, stop_counts_df),
+        generate_details(clickData2, deprivation_df, stop_counts_df),
+        fig1,
+        fig2
+    )
+
+def update_map(clickData, gdf_wards, df_burglaries):
+    selected_ward = clickData["points"][0].get("location") if clickData and "points" in clickData else None
 
     merged = gdf_wards.merge(df_burglaries, left_on="WD24CD", right_on="Ward code", how="left")
+    merged["highlight"] = merged["WD24CD"].apply(lambda x: "Selected Ward" if x == selected_ward else "Other Wards")
 
-    if selected_filter == "imd" and deprivation_df is not None:
-        html_map = generate_imd_heatmap(gdf_wards, deprivation_df)
-        return html_map
-    
-    else:
-        # Fallback: highlight clicked ward
-        merged["highlight"] = merged["WD24CD"].apply(
-            lambda x: "Selected Ward" if x == selected_ward else "Other Wards"
-        )
-        fig = px.choropleth_mapbox(
-            merged,
-            geojson=json.loads(gdf_wards.to_crs("EPSG:4326").to_json()),
-            locations="WD24CD",
-            featureidkey="properties.WD24CD",
-            color="highlight",
-            color_discrete_map={
-                "Other Wards": "#672DAA",
-                "Selected Ward": "#C7C73B"
-            },
-            mapbox_style="carto-positron",
-            center={"lat": 51.5, "lon": -0.1},
-            zoom=9,
-            opacity=0.6,
-            hover_name="WD24NM"
-        )
-
+    fig = px.choropleth_mapbox(
+        merged,
+        geojson=json.loads(gdf_wards.to_crs("EPSG:4326").to_json()),
+        locations="WD24CD",
+        featureidkey="properties.WD24CD",
+        color="highlight",
+        color_discrete_map={"Other Wards": "#672DAA", "Selected Ward": "#C7C73B"},
+        mapbox_style="carto-positron",
+        center={"lat": 51.5, "lon": -0.1},
+        zoom=9,
+        opacity=0.6,
+        hover_name="WD24NM"
+    )
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
     return fig
 
-@app.callback(
-    Output("selected_ward1", "data"),
-    Input("map1", "clickData"),
-    prevent_initial_call=True
-)
-def store_selected_ward1(clickData):
-    print("Map1 clickData:", clickData)
+def get_stop_count(ward_code, stop_counts_df):
+    match = stop_counts_df.loc[stop_counts_df["Ward code"] == ward_code, "stop_count"]
+    return int(match.values[0]) if not match.empty else "N/A"
+
+def generate_details(clickData, deprivation_df, stop_counts_df):
     if clickData and "points" in clickData:
-        return clickData["points"][0].get("location")
-    return dash.no_update
+        ward_code = clickData["points"][0].get("location")
+        ward_name = clickData["points"][0].get("hovertext", "Unknown Ward")
 
-@app.callback(
-    Output("selected_ward2", "data"),
-    Input("map2", "clickData"),
-    prevent_initial_call=True
-)
-def store_selected_ward2(clickData):
-    if clickData and "points" in clickData:
-        return clickData["points"][0].get("location")
-    return dash.no_update
+        imd_score = deprivation_df.loc[deprivation_df["Ward code"] == ward_code, "Index of Multiple Deprivation (IMD) Score"].values
+        imd_score = round(imd_score[0], 2) if len(imd_score) > 0 else "N/A"
 
-@app.callback(
-    [Output("ward1-details", "children"), 
-     Output("ward2-details", "children"), 
-     Output("map1", "children"),
-     Output("map2", "children")],
-    [Input("filter1", "value"), 
-     Input("filter2", "value")],
-    [State("selected_ward1", "data"),
-     State("selected_ward2", "data")]
-)
+        transport_stops = get_stop_count(ward_code, stop_counts_df)
 
-def update_ward_details(filter1, filter2, clickData1, clickData2):
-    try:
-        gdf_wards = gpd.read_file("data/boundaries/ward boundaries 2024/london_wards_merged.shp").to_crs("EPSG:4326")
-        df_burglaries = pd.read_parquet('data/processed/burglaries.parquet')
-        df_burglaries = df_burglaries[~df_burglaries['Ward code'].isin(['E05012399', 'E05015729'])]
-    except Exception as e:
-        return dbc.Card(), dbc.Card(), px.scatter_mapbox(title=f"Error loading data: {str(e)}"), px.scatter_mapbox(title=f"Error loading data: {str(e)}")
+        # Placeholder crime data
+        predicted_crimes = 123
+        previous_month_crimes = 100
+        diff = predicted_crimes - previous_month_crimes
+        trend_arrow = "↑" if diff > 0 else "↓"
+        trend_color = "text-danger" if diff > 0 else "text-success"
 
-    selected_ward1 = clickData1
-    selected_ward2 = clickData2
-
-    print("Selected Ward 1:", clickData1)
-
-    ward1_details = dbc.Card([
-        dbc.CardBody([
-            html.P("Select ward on the map to inspect details.", className="text-muted mb-0")
-        ])
-    ])
-
-    ward2_details = dbc.Card([
-        dbc.CardBody([
-            html.P("Select ward on the map to inspect details.", className="text-muted mb-0")
-        ])
-    ])
-
-    if selected_ward1:
-        ward_name = gdf_wards[gdf_wards["WD24CD"] == selected_ward1]["WD24NM"].values[0]
-        ward1_details = dbc.Card([
+        return dbc.Card([
             dbc.CardBody([
-                html.H4(ward_name, className="card-title"),
-                html.P("Predicted Crimes: 123", className="card-text"),  
-                html.P("Recommended Resource Allocation: 2 patrol units", className="card-text"),
-                dbc.Button("Inspect Details", id="inspect-details-btn1", color="primary", className="mt-2")
+                html.H4(ward_name, className="card-title mb-4"),
+                dbc.Row([
+                    dbc.Col([
+                        html.Div("Predicted Crimes", className="text-muted"),
+                        html.Div([
+                            html.Span(f"{predicted_crimes} ", className="fs-3 fw-bold me-2"),
+                            html.Span(f"{trend_arrow} {abs(diff)}", className=f"fs-5 {trend_color}")
+                        ])
+                    ], width=6),
+                    dbc.Col([
+                        html.Div("Patrol Recommendation", className="text-muted"),
+                        html.Div("2 Units", className="fs-3 fw-bold")
+                    ], width=6)
+                ], className="mb-3"),
+                dbc.Row([
+                    dbc.Col([
+                        html.Div("IMD Score", className="text-muted"),
+                        html.Div(imd_score, className="fs-3 fw-bold")
+                    ], width=6),
+                    dbc.Col([
+                        html.Div("Transport Stops", className="text-muted"),
+                        html.Div(transport_stops, className="fs-3 fw-bold")
+                    ], width=6)
+                ]),
+                dbc.Button("Inspect Details", id="inspect-details-btn", color="primary", className="mt-4")
             ])
         ])
-
-    if selected_ward2:
-        ward_name = gdf_wards[gdf_wards["WD24CD"] == selected_ward2]["WD24NM"].values[0]
-        ward2_details = dbc.Card([
+    else:
+        return dbc.Card([
             dbc.CardBody([
-                html.H4(ward_name, className="card-title"),
-                html.P("Predicted Crimes: 123", className="card-text"),
-                html.P("Recommended Resource Allocation: 2 patrol units", className="card-text"),
-                dbc.Button("Inspect Details", id="inspect-details-btn2", color="primary", className="mt-2")
+                html.P("Select ward on the map to inspect details.", className="text-muted mb-0")
             ])
         ])
-
-    map1_content = update_map(selected_ward1, filter1, gdf_wards, df_burglaries, deprivation_df)
-    map2_content = update_map(selected_ward2, filter2, gdf_wards, df_burglaries, deprivation_df)
-
-    # Wrap HTML maps in Iframes
-    def embed_folium(html_str):
-        return html.Iframe(srcDoc=html_str, width='100%', height='600', style={"border": "none"})
-
-    if filter1 == "imd":
-        map1_content = embed_folium(map1_content)
-    else:
-        map1_content = dcc.Graph(figure=map1_content, style={"height": "600px", "width": "100%"})
-
-    if filter2 == "imd":
-        map2_content = embed_folium(map2_content)
-    else:
-        map2_content = dcc.Graph(figure=map2_content, style={"height": "600px", "width": "100%"})
-
-    return ward1_details, ward2_details, map1_content, map2_content
 
 def about():
     return dbc.Card([
