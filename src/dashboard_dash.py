@@ -11,6 +11,7 @@ import geopandas as gpd
 import json
 import numpy as np
 from heatmap_generator import generate_imd_heatmap
+from dash import dash_table
 
 app = dash.Dash(
     __name__,
@@ -79,7 +80,7 @@ sidebar = html.Div(
             dbc.NavLink("Data Explorer", href="/data", active="exact", className="nav-link ps-3"),
             html.Div(id="data-explorer-submenu", style={"display": "none"}, children=[
                 dbc.NavLink("Crime Data", href="/data/crime", active="exact", className="nav-link ps-5"),
-                dbc.NavLink("Deprivation Index", href="/data/deprivation", active="exact", className="nav-link ps-5"),
+                dbc.NavLink("Deprivation Data", href="/data/deprivation", active="exact", className="nav-link ps-5"),
                 dbc.NavLink("Census Data", href="/data/census", active="exact", className="nav-link ps-5"),
                 dbc.NavLink("Summarized Data", href="/data/summary", active="exact", className="nav-link ps-5"),
             ]),
@@ -328,19 +329,18 @@ def crime_data():
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
 
+import dash_bootstrap_components as dbc
+from dash import html, Input, Output, callback
+from dash import dash_table
 
 def deprivation_data():
     return dbc.Card([
         dbc.CardBody([
-            html.H1("Deprivation Index", className="card-title"),
-            html.P("Explore deprivation index dataset for London wards:", className="card-text text-center mb-4"),
+            html.H1("Deprivation Data", className="card-title"),
+            html.P("Explore The English Indices of Deprivation 2019 for London.", className="card-text text-center mb-4"),
 
             html.Div([
-                html.P(
-                    "This dataset contains deprivation indices for London areas from 2011 to 2021, including income, employment, health, education, and living environment indicators.",
-                    className="card-text text-center"),
-
-                # Add attribute descriptions
+                # Attribute descriptions
                 html.Div([
                     html.H4("Data Attributes", className="mt-4 mb-3 text-start"),
                     html.Ul([
@@ -357,11 +357,11 @@ def deprivation_data():
                             "Measures employment deprivation including unemployment and incapacity benefits."
                         ], className="text-start"),
                         html.Li([
-                            html.Strong("Education, Skills and Training: "),
+                            html.Strong("Education, Skills and Training Domain: "),
                             "Measures lack of attainment and skills in the local population."
                         ], className="text-start"),
                         html.Li([
-                            html.Strong("Health Deprivation and Disability: "),
+                            html.Strong("Health Deprivation and Disability Domain: "),
                             "Measures morbidity, disability, and premature mortality."
                         ], className="text-start"),
                         html.Li([
@@ -369,11 +369,11 @@ def deprivation_data():
                             "Measures recorded crime rates for violence, burglary, theft, and criminal damage."
                         ], className="text-start"),
                         html.Li([
-                            html.Strong("Barriers to Housing and Services: "),
+                            html.Strong("Barriers to Housing and Services Domain: "),
                             "Measures physical and financial accessibility to housing and key local services."
                         ], className="text-start"),
                         html.Li([
-                            html.Strong("Living Environment: "),
+                            html.Strong("Living Environment Domain: "),
                             "Measures quality of the local environment including air quality and housing conditions."
                         ], className="text-start"),
                         html.Li([
@@ -385,31 +385,54 @@ def deprivation_data():
                             "Local authority ward identifier and name."
                         ], className="text-start"),
                         html.Li([
+                            html.Strong("Score Domain: "),
+                            "Measures employment deprivation including unemployment and incapacity benefits."
+                        ], className="text-start"),
+                        html.Li([
                             html.Strong("Ranks & Deciles: "),
                             "Relative measures where 1 is most deprived and 10 is least deprived. Ranks show absolute position, deciles divide areas into 10 equal groups."
                         ], className="text-start")
                     ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"})
                 ], className="mb-4"),
 
+                # Show data button
                 html.Div([
                     dbc.Button("Show Deprivation Data", id="btn-deprivation", color="primary", className="mt-3")
                 ], className="text-center"),
-                html.Div(id="deprivation-data-table", className="mt-3"),
+
+                # Content container that appears after button click
+                html.Hr(),
+
                 html.Div([
-                    dbc.Pagination(
-                        id="deprivation-pagination",
-                        max_value=1,  # Will be updated by callback
-                        first_last=True,
-                        previous_next=True,
-                        fully_expanded=False,
-                        size="sm",
-                        className="mt-3 justify-content-center"
-                    )
-                ], id="deprivation-pagination-container", style={"display": "none"})
+                    html.Div([
+                        html.H5("Choose Data Level", className="mt-4 mb-2"),
+                        dbc.Row([
+                            dbc.Col(html.Div("LSOA", className="text-end"), width="auto"),
+                            dbc.Col(
+                                dbc.Checklist(
+                                    options=[{"label": "", "value": "ward"}],
+                                    value=[],  # unchecked means LSOA
+                                    id="deprivation-toggle",
+                                    switch=True,
+                                    className="mx-3",
+                                    inline=True,
+                                ),
+                                width="auto",
+                                className="d-flex align-items-center"
+                            ),
+                            dbc.Col(html.Div("Ward", className="text-start"), width="auto"),
+                        ], justify="center", align="center", className="mb-4"),
+                        html.Small(
+                            "Toggle to switch between LSOA-level (off) and Ward-level (on) data.",
+                            className="text-muted"
+                        ),
+                    ], className="text-center"),
+
+                    html.Div(id="deprivation-data-table"),
+                ], id="deprivation-content", style={"display": "none"})  # Initially hidden
             ], className="p-3")
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
-
 
 def census_data():
     return dbc.Card([
@@ -1027,7 +1050,7 @@ def display_crime_data(month):
             if not crime_df.empty:
                 # Create attribute descriptions
                 attribute_descriptions = html.Div([
-                    html.H4("Data Attributes", className="mt-4 mb-3 text-start"),
+                    html.H4("About Data Attributes", className="mt-4 mb-3 text-start"),
                     html.Ul([
                         html.Li([
                             html.Strong("Crime ID: "),
@@ -1093,56 +1116,119 @@ def display_crime_data(month):
     return None, ""
 
 
+from dash import Input, Output, State
+
 @app.callback(
-    [Output("deprivation-data-table", "children"),
-     Output("deprivation-pagination", "max_value"),
-     Output("deprivation-pagination-container", "style")],
-    [Input("btn-deprivation", "n_clicks"),
-     Input("deprivation-pagination", "active_page")],
+    [
+        Output("deprivation-data-table", "children"),
+        Output("deprivation-content", "style"),
+    ],
+    [
+        Input("btn-deprivation", "n_clicks"),
+        Input("deprivation-toggle", "value"),
+    ],
     prevent_initial_call=True
 )
-def display_deprivation_data(n_clicks, page):
-    if not n_clicks:
-        return None, 1, {"display": "none"}
-    deprivation_df = load_deprivation_data()
-    # Only show data on odd clicks
-    if n_clicks % 2 == 1:
-        if not deprivation_df.empty:
-            # Calculate total number of pages (10 rows per page)
-            rows_per_page = 10
-            total_pages = (len(deprivation_df) + rows_per_page - 1) // rows_per_page
+def display_deprivation_data(n_clicks, toggle_value):
+    # toggle_value: [] means LSOA (off), ["ward"] means Ward (on)
 
-            # Get the current page (default to 1 if None)
-            current_page = page if page is not None else 1
+    if not n_clicks or n_clicks % 2 == 0:
+        # Hide content if button hasn't been clicked or on even clicks
+        return None, {"display": "none"}
 
-            # Calculate start and end indices for the current page
-            start_idx = (current_page - 1) * rows_per_page
-            end_idx = min(start_idx + rows_per_page, len(deprivation_df))
+    deprivation_df = load_deprivation_data()  # Your data loading function
 
-            # Get the data for the current page
-            page_data = deprivation_df.iloc[start_idx:end_idx]
+    if deprivation_df.empty:
+        return (
+            html.Div("No deprivation data available", className="text-danger"),
+            {"display": "none"},
+        )
 
-            return [
-                dbc.Table.from_dataframe(
-                    page_data,
-                    striped=True,
-                    bordered=True,
-                    hover=True,
-                    responsive=True,
-                    className="table-dark"
-                ),
-                total_pages,
-                {"display": "block"}
-            ]
-        else:
-            return [
-                html.Div("No deprivation data available", className="text-danger"),
-                1,
-                {"display": "none"}
-            ]
-    else:  # Hide data on even clicks
-        return None, 1, {"display": "none"}
+    if "ward" in toggle_value:
+        # Aggregate to ward level (simple mean as per your original code)
+        ward_df = deprivation_df.groupby(['Ward code', 'Ward name']).mean(numeric_only=True).reset_index()
+        display_df = ward_df
+    else:
+        # Show LSOA level data
+        cols_to_move_up = ['LSOA code', 'Ward code', 'Ward name']
+        deprivation_df = deprivation_df.set_index(cols_to_move_up).reset_index()
+        display_df = deprivation_df
 
+    display_df = display_df.round(3)
+
+    # Prepare columns for DataTable
+    columns = [{"name": col, "id": col} for col in display_df.columns]
+
+    # Dash DataTable with native sorting enabled and pagination (page size = 6)
+    table = dash_table.DataTable(
+        data=display_df.to_dict('records'),
+        columns=columns,
+        page_size=6,
+        sort_action='native',
+        style_table={
+            'overflowX': 'auto',
+            'maxWidth': '100%',
+            'margin': 'auto',
+            'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        },
+
+        style_header={
+            'backgroundColor': '#205081',  # Medium Navy Blue header
+            'color': '#f0f4f8',  # Very light grey text
+            'fontWeight': '600',
+            'fontSize': '15px',
+            'border': '1px solid #183b6e',
+            'textAlign': 'center',
+            'whiteSpace': 'normal',
+            'letterSpacing': '0.03em',
+        },
+
+        style_cell={
+            'backgroundColor': '#e7edf7',  # Very light blue background for cells
+            'color': '#102a54',  # Darker blue text for contrast
+            'padding': '10px 14px',
+            'fontSize': '14px',
+            'border': '1px solid #c1c9de',
+            'textAlign': 'left',
+            'whiteSpace': 'normal',
+            'lineHeight': '1.4',
+            'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        },
+
+        style_data_conditional=[
+            {
+                'if': {'row_index': 'even'},
+                'backgroundColor': '#d7e0f4',  # Slightly darker light blue for even rows
+            },
+            {
+                'if': {'state': 'active'},  # Hover / active row
+                'backgroundColor': '#aac4f7',
+                'border': '1px solid #517acc',
+            },
+            {
+                'if': {'state': 'selected'},  # Selected rows
+                'backgroundColor': '#8aa6e8',
+                'border': '1px solid #3f5f9e',
+                'color': '#f9fafc',  # lighter text on selected
+                'fontWeight': '600',
+            },
+            {
+                'if': {'filter_query': '{Income Domain} > 50'},  # conditional red text example
+                'color': '#b3302f',
+                'fontWeight': '700',
+            },
+        ],
+
+        style_cell_conditional=[
+            {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
+            {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+        ],
+
+        page_action='native',
+        filter_action='none',
+    )
+
+    return table, {"display": "block"}
 
 @app.callback(
     Output("census-data-table", "children"),
