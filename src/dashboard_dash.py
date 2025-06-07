@@ -276,9 +276,9 @@ def data_explorer():
                     html.Li("Crime Data: Monthly burglary statistics across London boroughs from 2022 to 2025",
                             className="text-center"),
                     html.Li(
-                        "Demographic Data: Information about population, household composition, and dwelling occupancy",
+                        "Deprivation Data: Measure relative deprivation in small areas",
                         className="text-center"),
-                    html.Li("Census Data: Ward-level demographic information from the latest census",
+                    html.Li("Census Data: Information about population demography, household composition, dwelling occupancy, and dwelling characteristics",
                             className="text-center"),
                     html.Li("Summarized Data: Key insights and aggregated statistics from all datasets",
                             className="text-center")
