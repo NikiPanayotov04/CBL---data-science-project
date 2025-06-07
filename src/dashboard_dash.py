@@ -124,7 +124,8 @@ def homepage():
                         style={
                             "textTransform": "uppercase",
                             "letterSpacing": "2px",
-                            "marginBottom": "0.3rem"
+                            "marginBottom": "0.3rem",
+                            "fontSize": "60px"
                         }
                     ),
                     html.P(
@@ -142,7 +143,7 @@ def homepage():
             "textAlign": "center",
             "boxShadow": "0 8px 16px rgba(26, 35, 126, 0.4)",
             "width": "100%",
-            "marginLeft": "20%",
+            "marginLeft": "250px",
             "padding": "2.5rem 2rem"
         }),
 
@@ -259,7 +260,7 @@ def homepage():
             html.Footer("Project developed by Team 31 – Fantastic Four",
                         style={"fontSize": "0.85rem", "color": "#999", "textAlign": "center", "marginBottom": "0.5rem"})
 
-        ], fluid=True, style={"marginLeft": "20%", "padding": "2rem 3rem"})
+        ], fluid=True, style={"marginLeft": "250px", "padding": "2rem 3rem"})
     ])
 
 def data_explorer():
@@ -291,7 +292,8 @@ def data_explorer():
                 dbc.Button("Summarized Data", href="/data/summary", color="primary", className="me-3"),
             ], className="mt-4 text-center")
         ])
-    ])
+    ], style={"marginLeft": "250px", "width": "100%"})
+
 
 
 def crime_data():
@@ -324,7 +326,7 @@ def crime_data():
             # Error message container
             html.Div(id="crime-data-error", className="text-danger text-center mt-3")
         ])
-    ])
+    ], style={"marginLeft": "250px", "width": "100%"})
 
 
 def deprivation_data():
@@ -406,7 +408,7 @@ def deprivation_data():
                 ], id="deprivation-pagination-container", style={"display": "none"})
             ], className="p-3")
         ])
-    ])
+    ], style={"marginLeft": "250px", "width": "100%"})
 
 
 def census_data():
@@ -448,7 +450,7 @@ def census_data():
                 html.Div(id="census-data-table", className="mt-3")
             ], className="p-3")
         ])
-    ])
+    ], style={"marginLeft": "250px", "width": "100%"})
 
 
 def forecasting():
@@ -525,7 +527,7 @@ def forecasting():
                 })
             ], className="p-3")
         ])
-    ])
+    ], style={"marginLeft": "250px", "width": "100%"})
 
 
 deprivation_df = load_deprivation_data()
@@ -565,7 +567,7 @@ def map_view():
                 )
             ])
         ])
-    ])
+    ], style={"marginLeft": "250px", "width": "100%"})
 
 
 # --- Callback ---
@@ -746,7 +748,7 @@ def about():
             html.Footer("Project developed by team 31(Fantastic Four):",
                         style={"fontSize": "0.85rem", "color": "#aaa", "marginTop": "2rem", "textAlign": "center"})
         ], style={"maxWidth": "800px", "margin": "0 auto"})  # Center the card body content
-    ])
+    ], style={"marginLeft": "250px", "width": "100%"})
 
 
 # Final layout with sidebar + content
@@ -998,7 +1000,7 @@ def summarized_data():
             # Content container that will be updated by the callback
             html.Div(id="summarized-data-content")
         ])
-    ])
+    ], style={"marginLeft": "250px", "width": "100%"})
 
 
 # Callbacks for data display
