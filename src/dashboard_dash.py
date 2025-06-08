@@ -10,7 +10,9 @@ import plotly.graph_objects as go
 import geopandas as gpd
 import json
 import numpy as np
+import plotly
 from heatmap_generator import generate_imd_heatmap 
+
 
 
 app = dash.Dash(
@@ -23,6 +25,7 @@ app = dash.Dash(
 )
 app.title = "Police Forecasting Dashboard"
 
+print(plotly.__version__)
 # Data loading functions
 def load_crime_data(month=None):
     try:
@@ -279,6 +282,7 @@ def deprivation_data():
         ])
     ])
 
+
 def census_data():
     return dbc.Card([
         dbc.CardBody([
@@ -473,6 +477,7 @@ def update_map(clickData, gdf_wards, df_burglaries):
 def get_stop_count(ward_code, stop_counts_df):
     match = stop_counts_df.loc[stop_counts_df["Ward code"] == ward_code, "stop_count"]
     return int(match.values[0]) if not match.empty else "N/A"
+
 
 def generate_details(clickData, deprivation_df, stop_counts_df):
     if clickData and "points" in clickData:
