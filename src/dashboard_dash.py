@@ -24,7 +24,6 @@ app = dash.Dash(
 app.title = "Police Forecasting Dashboard"
 
 
-print(plotly.__version__)
 # Data loading functions
 def load_crime_data(month=None):
     try:
@@ -57,6 +56,19 @@ def load_deprivation_data():
         print(f"Error loading deprivation data: {str(e)}")
         return pd.DataFrame()
 
+def load_borough_data():
+    try:
+        # Construct file path
+        file_path = 'data/lookups/Look up LSOA 2011 to LSOA 2021.csv'
+
+        if os.path.exists(file_path):
+            return pd.read_csv(file_path)
+        else:
+            print(f"File not found: {file_path}")
+            return pd.DataFrame()
+    except Exception as e:
+        print(f"Error loading crime data: {str(e)}")
+        return pd.DataFrame()
 
 def load_census_data():
     try:
@@ -814,191 +826,17 @@ def display_page(pathname):
         return html.H1("404 - Page not found")
 
 
-@app.callback(
-    Output("summarized-data-content", "children"),
-    Input("summary-month-picker", "value"),
-    prevent_initial_call=True
-)
-def update_summarized_data(selected_month):
-    if selected_month:
-        try:
-            # Get list of available months
-            months = [f"{year}-{month:02d}" for year in range(2022, 2026)
-                      for month in range(1, 13)
-                      if not (year == 2022 and month < 4) and not (year == 2025 and month > 3)]
-
-            # Find the index of the selected month
-            month_index = months.index(selected_month)
-            if month_index > 0:
-                previous_month = months[month_index - 1]
-            else:
-                previous_month = selected_month
-
-            # Load data for both months
-            current_data = load_crime_data(selected_month)
-            previous_data = load_crime_data(previous_month)
-
-            # Filter for burglaries
-            current_burglaries = current_data[current_data["Crime type"] == "Burglary"]
-            previous_burglaries = previous_data[previous_data["Crime type"] == "Burglary"]
-
-            # Load census data and calculate ward populations
-            census_df = load_census_data()
-            population_ward_df = census_df.groupby('Ward name')['Total population'].sum().reset_index()
-
-            # Get ward statistics for both months
-            current_ward_counts = pd.merge(census_df, current_burglaries, on='LSOA name', how='inner')
-            current_ward_counts = current_ward_counts.groupby('Ward name').size().reset_index(name='current_count')
-
-            previous_ward_counts = pd.merge(census_df, previous_burglaries, on='LSOA name', how='inner')
-            previous_ward_counts = previous_ward_counts.groupby('Ward name').size().reset_index(name='previous_count')
-
-            # Get LSOA statistics for both months
-            current_lsoa_counts = current_burglaries.groupby('LSOA name').size().reset_index(name='current_count')
-            previous_lsoa_counts = previous_burglaries.groupby('LSOA name').size().reset_index(name='previous_count')
-
-            # Calculate growth and rates
-            ward_stats = pd.merge(current_ward_counts, population_ward_df, on='Ward name', how='left')
-            ward_stats = pd.merge(ward_stats, previous_ward_counts, on='Ward name', how='left')
-            ward_stats['previous_count'] = ward_stats['previous_count'].fillna(0)
-            ward_stats['rate_per_1000'] = (ward_stats['current_count'] / ward_stats['Total population']) * 1000
-            ward_stats['growth'] = ((ward_stats['current_count'] - ward_stats['previous_count']) / ward_stats[
-                'previous_count']) * 100
-            ward_stats['growth'] = ward_stats['growth'].replace([np.inf, -np.inf], np.nan).fillna(0)
-
-            # Calculate LSOA growth
-            lsoa_stats = pd.merge(current_lsoa_counts, previous_lsoa_counts, on='LSOA name', how='left')
-            lsoa_stats['previous_count'] = lsoa_stats['previous_count'].fillna(0)
-            lsoa_stats['growth'] = ((lsoa_stats['current_count'] - lsoa_stats['previous_count']) / lsoa_stats[
-                'previous_count']) * 100
-            lsoa_stats['growth'] = lsoa_stats['growth'].replace([np.inf, -np.inf], np.nan).fillna(0)
-
-            # Sort and format the tables
-            ward_stats = ward_stats.sort_values('rate_per_1000', ascending=False)
-            ward_stats['current_count'] = ward_stats['current_count'].astype(int)
-            ward_stats['Total population'] = ward_stats['Total population'].astype(int)
-            ward_stats['rate_per_1000'] = ward_stats['rate_per_1000'].round(2)
-            ward_stats['growth'] = ward_stats['growth'].round(1)
-
-            lsoa_stats = lsoa_stats.sort_values('current_count', ascending=False)
-            lsoa_stats['current_count'] = lsoa_stats['current_count'].astype(int)
-            lsoa_stats['previous_count'] = lsoa_stats['previous_count'].astype(int)
-            lsoa_stats['growth'] = lsoa_stats['growth'].round(1)
-
-            # Get top LSOA
-            top_lsoa = lsoa_stats.iloc[0]
-
-            # Rename columns for display
-            ward_stats.columns = ['Ward Name', 'Current Count', 'Population', 'Previous Count', 'Rate per 1,000',
-                                  'Growth %']
-
-            # Calculate total burglaries and growth
-            total_current = len(current_burglaries)
-            total_previous = len(previous_burglaries)
-            total_growth = ((total_current - total_previous) / total_previous) * 100
-
-            return [
-                # Time Period and Overview
-                html.Div([
-                    html.H4(f"Data Period: {selected_month}", className="text-center text-muted mb-3"),
-                    html.Div([
-                        html.Span(f"Total Burglaries: {total_current:,} ", className="me-4"),
-                        html.Span(
-                            f"Change from previous month: {total_growth:+.1f}%",
-                            className=f"text-{'success' if total_growth < 0 else 'danger'}"
-                        )
-                    ], className="text-center mb-4")
-                ]),
-
-                # Top Areas Summary
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Card([
-                            dbc.CardBody([
-                                html.H4("Most Affected Ward", className="text-center"),
-                                html.H2(ward_stats.iloc[0]['Ward Name'], className="text-center text-primary"),
-                                html.P(f"Based on incidents rate per 1000 people", className="text-center"),
-                                html.P(f"{ward_stats.iloc[0]['Current Count']} incidents", className="text-center"),
-                                html.P(f"Rate: {ward_stats.iloc[0]['Rate per 1,000']} per 1,000 people",
-                                       className="text-center text-muted"),
-                                html.Div([
-                                    html.Span(
-                                        f"{ward_stats.iloc[0]['Growth %']:+.1f}%",
-                                        className=f"text-{'success' if ward_stats.iloc[0]['Growth %'] < 0 else 'danger'}"
-                                    ),
-                                    html.Span(" vs previous month", className="text-muted ms-2")
-                                ], className="text-center")
-                            ])
-                        ], className="mb-3 shadow-sm")
-                    ], md=6),
-                    dbc.Col([
-                        dbc.Card([
-                            dbc.CardBody([
-                                html.H4("Most Affected Area (LSOA)", className="text-center"),
-                                html.H2(top_lsoa['LSOA name'], className="text-center text-primary"),
-                                html.P(f"Based on highest count of incidents", className="text-center"),
-                                html.P(f"{top_lsoa['current_count']} incidents", className="text-center"),
-                                html.Div([
-                                    html.Span(
-                                        f"{top_lsoa['growth']:+.1f}%",
-                                        className=f"text-{'success' if top_lsoa['growth'] < 0 else 'danger'}"
-                                    ),
-                                    html.Span(" vs previous month", className="text-muted ms-2")
-                                ], className="text-center")
-                            ])
-                        ], className="mb-3 shadow-sm")
-                    ], md=6)
-                ], className="mb-4"),
-
-                # Table with ward statistics
-                html.Div([
-                    dbc.Table.from_dataframe(
-                        ward_stats[['Ward Name', 'Current Count', 'Population', 'Rate per 1,000', 'Growth %']],
-                        striped=True,
-                        bordered=True,
-                        hover=True,
-                        responsive=True,
-                        className="table-dark mt-4"
-                    )
-                ], style={
-                    'height': '600px',
-                    'overflowY': 'auto',
-                    'marginTop': '20px'
-                }),
-
-                # Additional Insights
-                html.Div([
-                    html.H3("Key Insights", className="mb-3 text-center mt-4"),
-                    html.Ul([
-                        html.Li([
-                            html.Strong("Highest Rate: "),
-                            f"{ward_stats.iloc[0]['Ward Name']} has the highest burglary rate at {ward_stats.iloc[0]['Rate per 1,000']} per 1,000 people."
-                        ], className="mb-2"),
-                        html.Li([
-                            html.Strong("Most Incidents: "),
-                            f"{ward_stats.loc[ward_stats['Current Count'].idxmax()]['Ward Name']} had the highest number of incidents with {ward_stats['Current Count'].max()} burglaries."
-                        ], className="mb-2"),
-                        html.Li([
-                            html.Strong("Trend: "),
-                            f"Overall burglary incidents have {'decreased' if total_growth < 0 else 'increased'} by {abs(total_growth):.1f}% compared to the previous month."
-                        ], className="mb-2")
-                    ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"})
-                ])
-            ]
-        except Exception as e:
-            print(f"Error updating summarized data: {str(e)}")
-            return html.Div("Error loading data. Please try again later.", className="text-danger text-center")
-    return None
-
-
 def summarized_data():
     # Get list of available months
-    months = [f"{year}-{month:02d}" for year in range(2022, 2026)
-              for month in range(1, 13)
-              if not (year == 2022 and month < 4) and not (year == 2025 and month > 3)]
+    months = []
+    for year in range(2022, 2026):
+        for month in range(1, 13):
+            if (year == 2022 and month < 4) or (year == 2025 and month > 3):
+                continue
+            months.append(f"{year}-{month:02d}")
 
-    # Get the most recent month
-    current_month = months[-1]
+    # Set default month to March 2025
+    default_month = "2025-03"
 
     return dbc.Card([
         dbc.CardBody([
@@ -1009,13 +847,8 @@ def summarized_data():
             html.Div([
                 dcc.Dropdown(
                     id='summary-month-picker',
-                    options=[
-                        {'label': f"{year}-{month:02d}", 'value': f"{year}-{month:02d}"}
-                        for year in range(2022, 2026)
-                        for month in range(1, 13)
-                        if not (year == 2022 and month < 4) and not (year == 2025 and month > 3)
-                    ],
-                    value=current_month,
+                    options=[{'label': month, 'value': month} for month in months],
+                    value=default_month,
                     clearable=False,
                     className="mb-4",
                     style={'width': '200px', 'margin': '0 auto'}
@@ -1023,9 +856,341 @@ def summarized_data():
             ], className="text-center"),
 
             # Content container that will be updated by the callback
-            html.Div(id="summarized-data-content")
+            html.Div(id="summarized-data-content", children=update_summarized_data(default_month, 'rate', 'rate'))
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
+
+@app.callback(
+    Output("summarized-data-content", "children"),
+    [Input("summary-month-picker", "value"),
+     Input("borough-sort-options", "value"),
+     Input("ward-sort-options", "value")],
+    prevent_initial_call=True
+)
+def update_summarized_data(selected_month, borough_sort, ward_sort):
+    if not selected_month:
+        selected_month = "2025-03"  # Default to March 2025 if no month selected
+    if not borough_sort:
+        borough_sort = 'rate'  # Default to rate sorting
+    if not ward_sort:
+        ward_sort = 'rate'  # Default to rate sorting
+
+    try:
+        # Get list of available months
+        months = []
+        for year in range(2022, 2026):
+            for month in range(1, 13):
+                if (year == 2022 and month < 4) or (year == 2025 and month > 3):
+                    continue
+                months.append(f"{year}-{month:02d}")
+
+        # Find the index of the selected month
+        month_index = months.index(selected_month)
+        if month_index > 0:
+            previous_month = months[month_index - 1]
+        else:
+            previous_month = selected_month
+
+        # Load data for both months
+        current_data = load_crime_data(selected_month)
+        previous_data = load_crime_data(previous_month)
+        borough_data = load_borough_data()
+
+        # Filter for burglaries
+        current_burglaries = current_data[current_data["Crime type"] == "Burglary"]
+        previous_burglaries = previous_data[previous_data["Crime type"] == "Burglary"]
+
+        # Load census data and calculate ward populations
+        census_df = load_census_data()
+        population_ward_df = census_df.groupby('Ward name')['Total population'].sum().reset_index()
+
+        # Get ward statistics for both months
+        current_ward_counts = pd.merge(census_df, current_burglaries, on='LSOA name', how='inner')
+        current_ward_counts = pd.merge(current_ward_counts, borough_data, left_on='LSOA code_x', right_on='LSOA21CD')
+        current_ward_counts = current_ward_counts.groupby(['Ward name', 'LAD22NM']).size().reset_index(name='current_count')
+
+        previous_ward_counts = pd.merge(census_df, previous_burglaries, on='LSOA name', how='inner')
+        previous_ward_counts = pd.merge(previous_ward_counts, borough_data, left_on='LSOA code_x', right_on='LSOA21CD')
+        previous_ward_counts = previous_ward_counts.groupby(['Ward name', 'LAD22NM']).size().reset_index(name='previous_count')
+
+        # Get LSOA statistics for both months
+        current_lsoa_counts = current_burglaries.groupby('LSOA name').size().reset_index(name='current_count')
+        previous_lsoa_counts = previous_burglaries.groupby('LSOA name').size().reset_index(name='previous_count')
+
+        # Calculate growth and rates
+        ward_stats = pd.merge(current_ward_counts, population_ward_df, on='Ward name', how='left')
+        ward_stats = pd.merge(ward_stats, previous_ward_counts, on=['Ward name', 'LAD22NM'], how='left')
+        ward_stats['previous_count'] = ward_stats['previous_count'].fillna(0)
+        ward_stats['rate_per_1000'] = (ward_stats['current_count'] / ward_stats['Total population']) * 1000
+        ward_stats['growth'] = ((ward_stats['current_count'] - ward_stats['previous_count']) / ward_stats['previous_count']) * 100
+        ward_stats['growth'] = ward_stats['growth'].replace([np.inf, -np.inf], np.nan).fillna(0)
+
+        # Calculate LSOA growth
+        lsoa_stats = pd.merge(current_lsoa_counts, previous_lsoa_counts, on='LSOA name', how='left')
+        lsoa_stats['previous_count'] = lsoa_stats['previous_count'].fillna(0)
+        lsoa_stats['growth'] = ((lsoa_stats['current_count'] - lsoa_stats['previous_count']) / lsoa_stats['previous_count']) * 100
+        lsoa_stats['growth'] = lsoa_stats['growth'].replace([np.inf, -np.inf], np.nan).fillna(0)
+
+        # Sort and format the tables
+        ward_stats = ward_stats.sort_values('rate_per_1000', ascending=False)
+        ward_stats['current_count'] = ward_stats['current_count'].astype(int)
+        ward_stats['Total population'] = ward_stats['Total population'].astype(int)
+        ward_stats['rate_per_1000'] = ward_stats['rate_per_1000'].round(2)
+        ward_stats['growth'] = ward_stats['growth'].round(1)
+
+        lsoa_stats = lsoa_stats.sort_values('current_count', ascending=False)
+        lsoa_stats['current_count'] = lsoa_stats['current_count'].astype(int)
+        lsoa_stats['previous_count'] = lsoa_stats['previous_count'].astype(int)
+        lsoa_stats['growth'] = lsoa_stats['growth'].round(1)
+
+        # Get top LSOA
+        top_lsoa = lsoa_stats.iloc[0]
+
+        # Rename columns for display
+        ward_stats.columns = ['Ward Name', 'Borough', 'Current Count', 'Population', 'Previous Count', 'Rate per 1,000', 'Growth %']
+
+        # Calculate total burglaries and growth
+        total_current = len(current_burglaries)
+        total_previous = len(previous_burglaries)
+        total_growth = ((total_current - total_previous) / total_previous) * 100
+
+        # Calculate borough-level statistics
+        borough_stats = ward_stats.groupby('Borough').agg({
+            'Current Count': 'sum',
+            'Population': 'sum',
+            'Previous Count': 'sum'
+        }).reset_index()
+
+        # Calculate borough-level rates and growth
+        borough_stats['rate_per_1000'] = (borough_stats['Current Count'] / borough_stats['Population']) * 1000
+        borough_stats['growth'] = ((borough_stats['Current Count'] - borough_stats['Previous Count']) / borough_stats['Previous Count']) * 100
+        borough_stats['growth'] = borough_stats['growth'].replace([np.inf, -np.inf], np.nan).fillna(0)
+
+        # Sort boroughs by rate
+        borough_stats = borough_stats.sort_values('rate_per_1000', ascending=False)
+        borough_stats['rate_per_1000'] = borough_stats['rate_per_1000'].round(2)
+        borough_stats['growth'] = borough_stats['growth'].round(1)
+
+        # Rename columns for display
+        borough_stats.columns = ['Borough', 'Current Count', 'Population', 'Previous Count', 'Rate per 1,000', 'Growth %']
+
+        # Get the borough with highest crime rate
+        highest_rate_borough = borough_stats.iloc[0]
+
+        # Sort based on selected options
+        if borough_sort == 'rate':
+            borough_stats = borough_stats.sort_values('Rate per 1,000', ascending=False)
+        elif borough_sort == 'count':
+            borough_stats = borough_stats.sort_values('Current Count', ascending=False)
+        elif borough_sort == 'growth':
+            borough_stats = borough_stats.sort_values('Growth %', ascending=False)
+
+        if ward_sort == 'rate':
+            ward_stats = ward_stats.sort_values('Rate per 1,000', ascending=False)
+        elif ward_sort == 'count':
+            ward_stats = ward_stats.sort_values('Current Count', ascending=False)
+        elif ward_sort == 'growth':
+            ward_stats = ward_stats.sort_values('Growth %', ascending=False)
+
+        return [
+            # Main Container with all statistics
+            html.Div([
+                # Header Section
+                html.Div([
+                    html.H4(f"Data Period: {selected_month}", className="text-center text-muted mb-3"),
+                    html.Div([
+                        html.Span(f"Total Burglaries: {total_current:,} ", className="me-4"),
+                        html.Span(
+                            f"Change from previous month: {total_growth:+.1f}%",
+                            className=f"text-{'success' if total_growth < 0 else 'danger'}"
+                        )
+                    ], className="text-center mb-4")
+                ], className="mb-4"),
+
+                # Statistics Cards Row
+                dbc.Row([
+                    # Highest Borough Rate Card
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Highest Crime Rate Borough", className="text-center mb-3"),
+                                html.H3(highest_rate_borough['Borough'], className="text-center text-danger mb-3"),
+                                html.Div([
+                                    html.Div([
+                                        html.Span("Rate: ", className="text-muted"),
+                                        html.Span(f"{highest_rate_borough['Rate per 1,000']} per 1,000", className="fw-bold")
+                                    ], className="mb-2"),
+                                    html.Div([
+                                        html.Span("Total Incidents: ", className="text-muted"),
+                                        html.Span(f"{highest_rate_borough['Current Count']:,}", className="fw-bold")
+                                    ], className="mb-2"),
+                                    html.Div([
+                                        html.Span("Growth: ", className="text-muted"),
+                                        html.Span(
+                                            f"{highest_rate_borough['Growth %']:+.1f}%",
+                                            className=f"fw-bold text-{'success' if highest_rate_borough['Growth %'] < 0 else 'danger'}"
+                                        )
+                                    ])
+                                ], className="text-center")
+                            ])
+                        ], className="shadow-sm h-100")
+                    ], md=4),
+
+                    # Most Affected Ward Card
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Most Affected Ward", className="text-center mb-3"),
+                                html.H3(ward_stats.iloc[0]['Ward Name'], className="text-center text-primary mb-2"),
+                                html.P(f"Borough: {ward_stats.iloc[0]['Borough']}", className="text-center text-muted mb-3"),
+                                html.Div([
+                                    html.Div([
+                                        html.Span("Rate: ", className="text-muted"),
+                                        html.Span(f"{ward_stats.iloc[0]['Rate per 1,000']} per 1,000", className="fw-bold")
+                                    ], className="mb-2"),
+                                    html.Div([
+                                        html.Span("Incidents: ", className="text-muted"),
+                                        html.Span(f"{ward_stats.iloc[0]['Current Count']:,}", className="fw-bold")
+                                    ], className="mb-2"),
+                                    html.Div([
+                                        html.Span("Growth: ", className="text-muted"),
+                                        html.Span(
+                                            f"{ward_stats.iloc[0]['Growth %']:+.1f}%",
+                                            className=f"fw-bold text-{'success' if ward_stats.iloc[0]['Growth %'] < 0 else 'danger'}"
+                                        )
+                                    ])
+                                ], className="text-center")
+                            ])
+                        ], className="shadow-sm h-100")
+                    ], md=4),
+
+                    # Most Affected LSOA Card
+                    dbc.Col([
+                        dbc.Card([
+                            dbc.CardBody([
+                                html.H5("Most Affected Area (LSOA)", className="text-center mb-3"),
+                                html.H3(top_lsoa['LSOA name'], className="text-center text-primary mb-3"),
+                                html.Div([
+                                    html.Div([
+                                        html.Span("Incidents: ", className="text-muted"),
+                                        html.Span(f"{top_lsoa['current_count']:,}", className="fw-bold")
+                                    ], className="mb-2"),
+                                    html.Div([
+                                        html.Span("Growth: ", className="text-muted"),
+                                        html.Span(
+                                            f"{top_lsoa['growth']:+.1f}%",
+                                            className=f"fw-bold text-{'success' if top_lsoa['growth'] < 0 else 'danger'}"
+                                        )
+                                    ])
+                                ], className="text-center")
+                            ])
+                        ], className="shadow-sm h-100")
+                    ], md=4)
+                ], className="mb-4"),
+
+                # Tables Section
+                dbc.Row([
+                    # Borough Statistics Table
+                    dbc.Col([
+                        html.Div([
+                            html.H4("Borough-Level Statistics", className="text-center mb-3"),
+                            # Borough sorting options
+                            html.Div([
+                                dbc.RadioItems(
+                                    id='borough-sort-options',
+                                    options=[
+                                        {'label': 'Sort by Rate', 'value': 'rate'},
+                                        {'label': 'Sort by Count', 'value': 'count'},
+                                        {'label': 'Sort by Growth', 'value': 'growth'}
+                                    ],
+                                    value=borough_sort,
+                                    inline=True,
+                                    className="mb-3"
+                                )
+                            ], className="text-center"),
+                            dbc.Table.from_dataframe(
+                                borough_stats,
+                                striped=True,
+                                bordered=True,
+                                hover=True,
+                                responsive=True,
+                                className="table-dark"
+                            )
+                        ], className="mb-4", style={
+                            'height': '800px',
+                            'overflowY': 'auto'
+                        })
+                    ], md=6),
+
+                    # Ward Statistics Table
+                    dbc.Col([
+                        html.Div([
+                            html.H4("Ward-Level Statistics", className="text-center mb-3"),
+                            # Ward sorting options
+                            html.Div([
+                                dbc.RadioItems(
+                                    id='ward-sort-options',
+                                    options=[
+                                        {'label': 'Sort by Rate', 'value': 'rate'},
+                                        {'label': 'Sort by Count', 'value': 'count'},
+                                        {'label': 'Sort by Growth', 'value': 'growth'}
+                                    ],
+                                    value=ward_sort,
+                                    inline=True,
+                                    className="mb-3"
+                                )
+                            ], className="text-center"),
+                            dbc.Table.from_dataframe(
+                                ward_stats[['Ward Name', 'Borough', 'Current Count', 'Population', 'Rate per 1,000', 'Growth %']],
+                                striped=True,
+                                bordered=True,
+                                hover=True,
+                                responsive=True,
+                                className="table-dark"
+                            )
+                        ], style={
+                            'height': '800px',
+                            'overflowY': 'auto'
+                        })
+                    ], md=6)
+                ]),
+
+                # Key Insights Section
+                html.Div([
+                    html.H3("Key Insights", className="text-center mb-4"),
+                    dbc.Row([
+                        dbc.Col([
+                            html.Ul([
+                                html.Li([
+                                    html.Strong("Highest Borough Rate: "),
+                                    f"{highest_rate_borough['Borough']} has the highest borough-level burglary rate at {highest_rate_borough['Rate per 1,000']} per 1,000 people."
+                                ], className="mb-3"),
+                                html.Li([
+                                    html.Strong("Highest Ward Rate: "),
+                                    f"{ward_stats.iloc[0]['Ward Name']} in {ward_stats.iloc[0]['Borough']} has the highest ward-level burglary rate at {ward_stats.iloc[0]['Rate per 1,000']} per 1,000 people."
+                                ], className="mb-3")
+                            ])
+                        ], md=6),
+                        dbc.Col([
+                            html.Ul([
+                                html.Li([
+                                    html.Strong("Most Incidents: "),
+                                    f"{ward_stats.loc[ward_stats['Current Count'].idxmax()]['Ward Name']} in {ward_stats.loc[ward_stats['Current Count'].idxmax()]['Borough']} had the highest number of incidents with {ward_stats['Current Count'].max()} burglaries."
+                                ], className="mb-3"),
+                                html.Li([
+                                    html.Strong("Trend: "),
+                                    f"Overall burglary incidents have {'decreased' if total_growth < 0 else 'increased'} by {abs(total_growth):.1f}% compared to the previous month."
+                                ], className="mb-3")
+                            ])
+                        ], md=6)
+                    ])
+                ], className="mt-4 p-4 bg-light rounded")
+            ], className="p-4")
+        ]
+    except Exception as e:
+        print(f"Error updating summarized data: {str(e)}")
+        return html.Div("Error loading data. Please try again later.", className="text-danger text-center")
+    return None
 
 
 # Callbacks for data display
@@ -1302,6 +1467,22 @@ def filter_and_sort_wards(search_value, sort_option):
     except Exception as e:
         print(f"Error in ward search/sort: {str(e)}")
         return None
+
+
+# Add new callbacks for sorting
+@app.callback(
+    Output("borough-sort-options", "value"),
+    Input("borough-sort-options", "value")
+)
+def update_borough_sort(sort_option):
+    return sort_option
+
+@app.callback(
+    Output("ward-sort-options", "value"),
+    Input("ward-sort-options", "value")
+)
+def update_ward_sort(sort_option):
+    return sort_option
 
 
 if __name__ == '__main__':
