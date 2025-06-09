@@ -10,7 +10,6 @@ import plotly.graph_objects as go
 import geopandas as gpd
 import json
 import numpy as np
-from heatmap_generator import generate_imd_heatmap 
 
 
 app = dash.Dash(
@@ -571,7 +570,8 @@ deprivation_df = load_deprivation_data()
 burglaries_df = pd.read_parquet("data/processed/burglaries.parquet")
 stop_counts_df = pd.read_csv("data/processed/stop_counts_per_ward.csv")
 gdf_wards = gpd.read_file("data/boundaries/ward boundaries 2024/london_wards_merged.shp").to_crs("EPSG:4326")
-
+forecasts_df = pd.read_csv("data/processed/ward_hour_allocation_LP_method.csv")
+crime_counts_df = pd.read_csv("data/processed/monthly_burglary_per_ward.csv")
 
 # --- Map View Layout ---
 def map_view():
@@ -661,18 +661,24 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
         ward_code = clickData["points"][0].get("location")
         ward_name = clickData["points"][0].get("hovertext", "Unknown Ward")
 
-        imd_score = deprivation_df.loc[
-            deprivation_df["Ward code"] == ward_code, "Index of Multiple Deprivation (IMD) Score"].values
+
+        previous_month_crimes = crime_counts_df.loc[(crime_counts_df["Ward code"] == ward_code) & (crime_counts_df["Month"] == "2025-03-01"), "burglary_count"].values
+        previous_month_crimes = previous_month_crimes[0] if len(previous_month_crimes) > 0 else 0
+
+        predicted_crimes = forecasts_df.loc[forecasts_df["Ward code"] == ward_code, "Predicted_Crime_Count"].values
+        predicted_crimes = round(predicted_crimes[0], 2) if len(predicted_crimes) > 0 else "N/A"
+
+        diff = round(predicted_crimes - previous_month_crimes, 2) if isinstance(predicted_crimes, (float, int)) else "N/A"
+        trend_arrow = "↑" if diff > 0 else "↓"
+        trend_color = "text-danger" if diff > 0 else "text-success"
+
+        resource_allocation = forecasts_df.loc[forecasts_df["Ward code"] == ward_code, "Allocated_Officers_Rounded"].values
+        resource_allocation = int(resource_allocation[0]) if len(resource_allocation) > 0 else "N/A"
+
+        imd_score = deprivation_df.loc[deprivation_df["Ward code"] == ward_code, "Index of Multiple Deprivation (IMD) Score"].values
         imd_score = round(imd_score[0], 2) if len(imd_score) > 0 else "N/A"
 
         transport_stops = get_stop_count(ward_code, stop_counts_df)
-
-        # Placeholder crime data
-        predicted_crimes = 123
-        previous_month_crimes = 100
-        diff = predicted_crimes - previous_month_crimes
-        trend_arrow = "↑" if diff > 0 else "↓"
-        trend_color = "text-danger" if diff > 0 else "text-success"
 
         return dbc.Card([
             dbc.CardBody([
@@ -686,8 +692,8 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
                         ])
                     ], width=6),
                     dbc.Col([
-                        html.Div("Patrol Recommendation", className="text-muted"),
-                        html.Div("2 Units", className="fs-3 fw-bold")
+                        html.Div("Resource Recommendation", className="text-muted"),
+                        html.Span(f"{resource_allocation} policing hours", className="fs-3 fw-bold me-2"),
                     ], width=6)
                 ], className="mb-3"),
                 dbc.Row([
@@ -700,7 +706,6 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
                         html.Div(transport_stops, className="fs-3 fw-bold")
                     ], width=6)
                 ]),
-                dbc.Button("Inspect Details", id="inspect-details-btn", color="primary", className="mt-4")
             ])
         ])
     else:
