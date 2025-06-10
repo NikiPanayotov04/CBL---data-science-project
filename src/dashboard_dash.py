@@ -16,7 +16,8 @@ app = dash.Dash(
     __name__,
     external_stylesheets=[
         dbc.themes.CYBORG,
-        'assets/custom_dashboard_dash.css'  # Updated path to be relative to src directory
+        'assets/custom_dashboard_dash.css',  # Updated path to be relative to src directory
+        "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" # Bootstrap Icons (arrows)
     ],
     suppress_callback_exceptions=True  # Add this line to suppress callback exceptions
 )
@@ -661,20 +662,25 @@ def update_map(clickData, gdf_wards, df_burglaries):
     selected_ward = clickData["points"][0].get("location") if clickData and "points" in clickData else None
 
     merged = gdf_wards.merge(df_burglaries, left_on="WD24CD", right_on="Ward code", how="left")
-    merged["highlight"] = merged["WD24CD"].apply(lambda x: "Selected Ward" if x == selected_ward else "Other Wards")
+    merged["Highlight"] = merged["WD24CD"].apply(lambda x: "Selected Ward" if x == selected_ward else "Other Wards")
 
     fig = px.choropleth_mapbox(
         merged,
         geojson=json.loads(gdf_wards.to_crs("EPSG:4326").to_json()),
         locations="WD24CD",
         featureidkey="properties.WD24CD",
-        color="highlight",
+        color="Highlight",
         color_discrete_map={"Other Wards": "#672DAA", "Selected Ward": "#C7C73B"},
         mapbox_style="carto-positron",
         center={"lat": 51.5, "lon": -0.1},
-        zoom=9,
+        zoom=8.8,
         opacity=0.6,
-        hover_name="WD24NM"
+        hover_name="WD24NM",
+        hover_data={
+            "Ward code": True,
+            "Highlight": False,
+            "WD24CD": False,
+        }
     )
     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
     return fig
@@ -690,21 +696,34 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
         ward_code = clickData["points"][0].get("location")
         ward_name = clickData["points"][0].get("hovertext", "Unknown Ward")
 
-
-        previous_month_crimes = crime_counts_df.loc[(crime_counts_df["Ward code"] == ward_code) & (crime_counts_df["Month"] == "2025-03-01"), "burglary_count"].values
+        previous_month_crimes = crime_counts_df.loc[
+            (crime_counts_df["Ward code"] == ward_code) & 
+            (crime_counts_df["Month"] == "2025-03-01"), 
+            "burglary_count"
+        ].values
         previous_month_crimes = previous_month_crimes[0] if len(previous_month_crimes) > 0 else 0
 
-        predicted_crimes = forecasts_df.loc[forecasts_df["Ward code"] == ward_code, "Predicted_Crime_Count"].values
+        predicted_crimes = forecasts_df.loc[
+            forecasts_df["Ward code"] == ward_code, 
+            "Predicted_Crime_Count"
+        ].values
         predicted_crimes = round(predicted_crimes[0], 2) if len(predicted_crimes) > 0 else "N/A"
 
         diff = round(predicted_crimes - previous_month_crimes, 2) if isinstance(predicted_crimes, (float, int)) else "N/A"
-        trend_arrow = "↑" if diff > 0 else "↓"
+        trend_arrow = "bi-arrow-up" if diff > 0 else "bi-arrow-down"
         trend_color = "text-danger" if diff > 0 else "text-success"
+        diff_pct = round(abs(diff) / previous_month_crimes * 100, 2) if previous_month_crimes else 0
 
-        resource_allocation = forecasts_df.loc[forecasts_df["Ward code"] == ward_code, "Allocated_Officers_Rounded"].values
+        resource_allocation = forecasts_df.loc[
+            forecasts_df["Ward code"] == ward_code, 
+            "Allocated_Officers_Rounded"
+        ].values
         resource_allocation = int(resource_allocation[0]) if len(resource_allocation) > 0 else "N/A"
 
-        imd_score = deprivation_df.loc[deprivation_df["Ward code"] == ward_code, "Index of Multiple Deprivation (IMD) Score"].values
+        imd_score = deprivation_df.loc[
+            deprivation_df["Ward code"] == ward_code, 
+            "Index of Multiple Deprivation (IMD) Score"
+        ].values
         imd_score = round(imd_score[0], 2) if len(imd_score) > 0 else "N/A"
 
         transport_stops = get_stop_count(ward_code, stop_counts_df)
@@ -712,31 +731,46 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
         return dbc.Card([
             dbc.CardBody([
                 html.H4(ward_name, className="card-title mb-4"),
+
                 dbc.Row([
                     dbc.Col([
-                        html.Div("Predicted Crimes", className="text-muted"),
                         html.Div([
-                            html.Span(f"{predicted_crimes} ", className="fs-3 fw-bold me-2"),
-                            html.Span(f"{trend_arrow} {abs(diff)}", className=f"fs-5 {trend_color}")
+                            html.Span(f"{predicted_crimes}", className="fs-3 fw-bold me-2"),
+                            html.Span([
+                                html.I(className=f"bi {trend_arrow} me-1 {trend_color}", id="trend-icon"),
+                                f"{diff_pct}%"
+                            ], className=f"fs-6 {trend_color}"),
+                            dbc.Tooltip("Change vs previous month", target="trend-icon")
                         ])
                     ], width=6),
                     dbc.Col([
                         html.Div("Resource Recommendation", className="text-muted"),
-                        html.Span(f"{resource_allocation} policing hours", className="fs-3 fw-bold me-2"),
+                        html.Div(f"{resource_allocation} policing hours", className="fs-3 fw-bold")
                     ], width=6)
                 ], className="mb-3"),
+
+                html.Hr(className="my-2"),
+
                 dbc.Row([
                     dbc.Col([
-                        html.Div("IMD Score", className="text-muted"),
+                        html.Div([
+                            "IMD Score ",
+                            html.I(className="bi bi-info-circle", id={"type": "imd-tooltip-icon", "index": ward_code}),
+                            dbc.Tooltip("Index of Multiple Deprivation (higher = more deprived)", target={"type": "imd-tooltip-icon", "index": ward_code}),
+                        ], className="text-muted"),
                         html.Div(imd_score, className="fs-3 fw-bold")
                     ], width=6),
                     dbc.Col([
-                        html.Div("Transport Stops", className="text-muted"),
+                        html.Div([
+                            "Transport Stops", 
+                            html.I(className="bi bi-info-circle", id={"type": "transport_stops-tooltip-icon", "index": ward_code}),
+                            dbc.Tooltip("Number of Transportatation Stops (bus, train, etc.)", target={"type": "transport_stops-tooltip-icon", "index": ward_code}),
+                        ], className="text-muted"),
                         html.Div(transport_stops, className="fs-3 fw-bold")
                     ], width=6)
                 ]),
             ])
-        ])
+        ], className="shadow-sm")
     else:
         return dbc.Card([
             dbc.CardBody([
