@@ -354,7 +354,7 @@ def deprivation_data():
             html.Div([
                 # Attribute descriptions
                 html.Div([
-                    html.H4("Data Attributes", className="mt-4 mb-3 text-start"),
+                    html.H4("About Data Attributes", className="mt-4 mb-3 text-start"),
                     html.Ul([
                         html.Li([
                             html.Strong("Index of Multiple Deprivation (IMD): "),
@@ -397,10 +397,6 @@ def deprivation_data():
                             "Local authority ward identifier and name."
                         ], className="text-start"),
                         html.Li([
-                            html.Strong("Score Domain: "),
-                            "Measures employment deprivation including unemployment and incapacity benefits."
-                        ], className="text-start"),
-                        html.Li([
                             html.Strong("Ranks & Deciles: "),
                             "Relative measures where 1 is most deprived and 10 is least deprived. Ranks show absolute position, deciles divide areas into 10 equal groups."
                         ], className="text-start")
@@ -416,6 +412,8 @@ def deprivation_data():
                 html.Hr(),
 
                 html.Div([
+
+                    # LSOA-Ward toggle
                     html.Div([
                         html.H5("Choose Data Level", className="mt-4 mb-2"),
                         dbc.Row([
@@ -440,6 +438,7 @@ def deprivation_data():
                         ),
                     ], className="text-center"),
 
+                    # Deprivation Table
                     html.Div(id="deprivation-data-table"),
                 ], id="deprivation-content", style={"display": "none"})  # Initially hidden
             ], className="p-3")
@@ -451,39 +450,69 @@ def census_data():
     return dbc.Card([
         dbc.CardBody([
             html.H1("Census Data", className="card-title"),
-            html.P("Explore ward-level demographic information from the latest census data for London.",
+            html.P("Explore 2021 census data for London.",
                    className="card-text text-center mb-4"),
 
             # Description section
             html.Div([
-                html.H4("About the Census Data", className="mt-3 text-center"),
-                html.P("This dataset provides comprehensive demographic information at the ward level, including:",
-                       className="card-text text-center"),
+                html.H4("About Data Attributes", className="mt-4 mb-3 text-start"),
+
                 html.Ul([
                     html.Li([
-                        html.Strong("Population Structure: "),
+                        html.Strong("Population Demography: "),
                         "Detailed breakdown of population by age groups (under 15, 15-64, 65+)"
-                    ], className="text-center"),
+                    ], className="text-start"),
                     html.Li([
                         html.Strong("Household Composition: "),
-                        "Information about household types including single-person households and family structures"
-                    ], className="text-center"),
+                        "Breakdown of household composition including single-person households and family structures"
+                    ], className="text-start"),
                     html.Li([
-                        html.Strong("Housing Types: "),
-                        "Distribution of different housing types (detached, semi-detached, terraced, flats) and occupancy status"
-                    ], className="text-center"),
+                        html.Strong("Dwelling Types: "),
+                        "Distribution of different dwelling types (detached, semi-detached, terraced, flats)"
+                    ], className="text-start"),
                     html.Li([
-                        html.Strong("Geographic Coverage: "),
-                        "Data available at both LSOA (Lower Layer Super Output Area) and ward levels across London"
-                    ], className="text-center")
+                        html.Strong("Occupancy Rating: "),
+                        "Breaks down total number of dwellings into occupied and unoccupied dwellings"
+                    ], className="text-start"),
+
                 ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"}),
                 # Centered button
                 html.Div([
                     dbc.Button("Show Census Data", id="btn-census", color="primary", className="mt-3")
                 ], className="text-center"),
 
-                # Data table container
-                html.Div(id="census-data-table", className="mt-3")
+                html.Hr(),
+
+                html.Div([
+
+                    # LSOA-Ward toggle
+                    html.Div([
+                        html.H5("Choose Data Level", className="mt-4 mb-2"),
+                        dbc.Row([
+                            dbc.Col(html.Div("LSOA", className="text-end"), width="auto"),
+                            dbc.Col(
+                                dbc.Checklist(
+                                    options=[{"label": "", "value": "ward"}],
+                                    value=[],  # unchecked means LSOA
+                                    id="census-toggle",
+                                    switch=True,
+                                    className="mx-3",
+                                    inline=True,
+                                ),
+                                width="auto",
+                                className="d-flex align-items-center"
+                            ),
+                            dbc.Col(html.Div("Ward", className="text-start"), width="auto"),
+                        ], justify="center", align="center", className="mb-4"),
+                        html.Small(
+                            "Toggle to switch between LSOA-level (off) and Ward-level (on) data.",
+                            className="text-muted"
+                        ),
+                    ], className="text-center"),
+
+                    # Deprivation Table
+                    html.Div(id="census-data-table"),
+                ], id="census-content", style={"display": "none"})  # Initially hidden
             ], className="p-3")
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
@@ -1326,7 +1355,7 @@ def display_deprivation_data(n_clicks, toggle_value):
         deprivation_df = deprivation_df.set_index(cols_to_move_up).reset_index()
         display_df = deprivation_df
 
-    display_df = display_df.round(3)
+    display_df = display_df.round(2)
 
     # Prepare columns for DataTable
     columns = [{"name": col, "id": col} for col in display_df.columns]
@@ -1403,27 +1432,116 @@ def display_deprivation_data(n_clicks, toggle_value):
     return table, {"display": "block"}
 
 @app.callback(
-    Output("census-data-table", "children"),
-    Input("btn-census", "n_clicks"),
+    [
+        Output("census-data-table", "children"),
+        Output("census-content", "style"),
+    ],
+    [
+        Input("btn-census", "n_clicks"),
+        Input("census-toggle", "value"),
+    ],
     prevent_initial_call=True
 )
-def display_census_data(n_clicks):
-    census_df = load_census_data()
-    if n_clicks and n_clicks % 2 == 1:  # Show data on odd clicks
-        if not census_df.empty:
-            return dbc.Table.from_dataframe(
-                census_df.head(10),
-                striped=True,
-                bordered=True,
-                hover=True,
-                responsive=True,
-                className="table-dark"
-            )
-        else:
-            return html.Div("No census data available", className="text-danger")
-    else:  # Hide data on even clicks
-        return None
+def display_census_data(n_clicks, toggle_value):
+    # toggle_value: [] means LSOA (off), ["ward"] means Ward (on)
 
+    if not n_clicks or n_clicks % 2 == 0:
+        # Hide content if button hasn't been clicked or on even clicks
+        return None, {"display": "none"}
+
+    census_df = load_census_data()  # Your data loading function
+
+    if census_df.empty:
+        return (
+            html.Div("No deprivation data available", className="text-danger"),
+            {"display": "none"},
+        )
+
+    if "ward" in toggle_value:
+        # Aggregate to ward level (simple mean as per your original code)
+        ward_df = census_df.groupby(['Ward code', 'Ward name']).mean(numeric_only=True).reset_index()
+        display_df = ward_df
+    else:
+        # Show LSOA level data
+        cols_to_move_up = ['LSOA code', 'LSOA name', 'Ward code', 'Ward name']
+        census_df = census_df.set_index(cols_to_move_up).reset_index()
+        display_df = census_df
+
+    display_df = display_df.round(2)
+
+    # Prepare columns for DataTable
+    columns = [{"name": col, "id": col} for col in display_df.columns]
+
+    # Dash DataTable with native sorting enabled and pagination (page size = 6)
+    table = dash_table.DataTable(
+        data=display_df.to_dict('records'),
+        columns=columns,
+        page_size=6,
+        sort_action='native',
+        style_table={
+            'overflowX': 'auto',
+            'maxWidth': '100%',
+            'margin': 'auto',
+            'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        },
+
+        style_header={
+            'backgroundColor': '#205081',  # Medium Navy Blue header
+            'color': '#f0f4f8',  # Very light grey text
+            'fontWeight': '600',
+            'fontSize': '15px',
+            'border': '1px solid #183b6e',
+            'textAlign': 'center',
+            'whiteSpace': 'normal',
+            'letterSpacing': '0.03em',
+        },
+
+        style_cell={
+            'backgroundColor': '#e7edf7',  # Very light blue background for cells
+            'color': '#102a54',  # Darker blue text for contrast
+            'padding': '10px 14px',
+            'fontSize': '14px',
+            'border': '1px solid #c1c9de',
+            'textAlign': 'left',
+            'whiteSpace': 'normal',
+            'lineHeight': '1.4',
+            'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        },
+
+        style_data_conditional=[
+            {
+                'if': {'row_index': 'even'},
+                'backgroundColor': '#d7e0f4',  # Slightly darker light blue for even rows
+            },
+            {
+                'if': {'state': 'active'},  # Hover / active row
+                'backgroundColor': '#aac4f7',
+                'border': '1px solid #517acc',
+            },
+            {
+                'if': {'state': 'selected'},  # Selected rows
+                'backgroundColor': '#8aa6e8',
+                'border': '1px solid #3f5f9e',
+                'color': '#f9fafc',  # lighter text on selected
+                'fontWeight': '600',
+            },
+            {
+                'if': {'filter_query': '{Income Domain} > 50'},  # conditional red text example
+                'color': '#b3302f',
+                'fontWeight': '700',
+            },
+        ],
+
+        style_cell_conditional=[
+            {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
+            {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+        ],
+
+        page_action='native',
+        filter_action='none',
+    )
+
+    return table, {"display": "block"}
 
 # Add callback to control submenu visibility
 @app.callback(
