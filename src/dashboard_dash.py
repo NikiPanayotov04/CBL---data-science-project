@@ -82,6 +82,15 @@ def load_census_data():
         print(f"Error loading census data: {str(e)}")
         return pd.DataFrame()
 
+# load wards and wards options
+gdf_ward_boundaries = gpd.read_file('data/boundaries/ward boundaries 2024/london_wards_merged.shp')
+gdf_ward_boundaries.rename(columns={'WD24CD': 'Ward code', 'WD24NM': 'Ward name'}, inplace=True)
+wards = gdf_ward_boundaries[['Ward code', 'Ward name']].drop_duplicates()
+ward_options = [
+        {'label': f"{row['Ward code']}, {row['Ward name']}", 'value': row['Ward code']}
+        for _, row in wards.sort_values('Ward code').iterrows()
+    ]
+
 
 # Sidebar menu
 sidebar = html.Div(
@@ -314,75 +323,66 @@ def crime_data():
     return dbc.Card([
         dbc.CardBody([
             html.H1("Crime Data", className="card-title"),
-            html.P("Explore burglary crime data from 2022-2025 reported by the Metropolitan Police Service and City of London Police.", className="card-text text-center mb-4"),
+            html.P("Explore street-level burglary crime data from 2022–2025 reported by the Metropolitan Police Service and City of London Police.",
+                   className="card-text text-center mb-4"),
 
             html.Div([
+
                 # Attribute descriptions
                 html.Div([
                     html.H4("About Data Attributes", className="mt-4 mb-3 text-start"),
                     html.Ul([
-                        html.Li([
-                            html.Strong("Crime ID: "),
-                            "Unique identifier for each crime incident"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Month: "),
-                            "The month when the crime was reported"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Reported by: "),
-                            "The police force that recorded the crime"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Falls within: "),
-                            "The police force responsible for the area"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Longitude & Latitude: "),
-                            "Geographic coordinates of the crime location"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Location: "),
-                            "Street name or area where the crime occurred"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("LSOA code & name: "),
-                            "Lower Layer Super Output Area identifier and name"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Crime type: "),
-                            "Category of the crime committed (all are burglary)"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Last outcome category: "),
-                            "The most recent status or resolution of the case"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Context: "),
-                            "Additional information about the crime incident"
-                        ], className="text-start"),
+                        html.Li([html.Strong("Crime ID: "), "Unique identifier for each crime incident."], className="text-start"),
+                        html.Li([html.Strong("Month: "), "The month when the crime was reported"], className="text-start"),
+                        html.Li([html.Strong("Reported by: "), "The police force that recorded the crime"], className="text-start"),
+                        html.Li([html.Strong("Falls within: "), "The police force responsible for the area"], className="text-start"),
+                        html.Li([html.Strong("Longitude & Latitude: "), "Geographic coordinates of the crime location"], className="text-start"),
+                        html.Li([html.Strong("Location: "), "Street name or area where the crime occurred"], className="text-start"),
+                        html.Li([html.Strong("LSOA code & name: "), "Lower Layer Super Output Area identifier and name"], className="text-start"),
+                        html.Li([html.Strong("Crime type: "), "Category of the crime committed (all are burglary)"], className="text-start"),
+                        html.Li([html.Strong("Last outcome category: "), "The most recent status or resolution of the case"], className="text-start"),
+                        html.Li([html.Strong("Context: "), "Additional information about the crime incident"], className="text-start"),
                     ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"})
                 ], className="mb-4"),
 
-                # Month picker
-                html.H5("Choose Month", className="text-center mt-4 mb-2"),
-                html.Div([
-                    dcc.Dropdown(
-                        id='month-picker',
-                        options=[
-                            {'label': f"{year}-{month:02d}", 'value': f"{year}-{month:02d}"}
-                            for year in range(2022, 2026)
-                            for month in range(1, 13)
-                            if not (year == 2022 and month < 4) and not (year == 2025 and month > 3)
-                        ],
-                        value="2022-04",  # Default value set to April 2022
-                        clearable=False,
-                        className="mt-3",
-                        style={'width': '200px'}
-                    )
-                ], className="d-flex justify-content-center"),
-
                 html.Hr(),
+
+                # Filters section
+                html.Div([
+                    html.H5("Filter Crime Data", className="text-center mt-4 mb-3"),
+
+                    # Month selector
+                    html.Div([
+                        html.Label("Choose Month", className="mb-1"),
+                        dcc.Dropdown(
+                            id='month-picker',
+                            options=[
+                                {'label': f"{year}-{month:02d}", 'value': f"{year}-{month:02d}"}
+                                for year in range(2022, 2026)
+                                for month in range(1, 13)
+                                if not (year == 2022 and month < 4) and not (year == 2025 and month > 3)
+                            ],
+                            value=None,
+                            clearable=True,
+                            searchable=True,
+                            style={'width': '100%'}
+                        )
+                    ], style={"width": "250px"}, className="me-3"),
+
+                    # Ward name selector
+                    html.Div([
+                        html.Label("Search by Ward", className="mb-1"),
+                        dcc.Dropdown(
+                            id='ward-picker',
+                            options=ward_options,
+                            placeholder="Type to search ward...",
+                            clearable=True,
+                            searchable=True,
+                            style={'width': '100%'}
+                        )
+                    ], style={"width": "300px"}),
+
+                ], className="d-flex justify-content-center flex-wrap gap-3 mb-4"),
 
                 # Data display
                 html.Div(id="crime-data-table", className="mt-3"),
@@ -749,14 +749,14 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
         ward_name = clickData["points"][0].get("hovertext", "Unknown Ward")
 
         previous_month_crimes = crime_counts_df.loc[
-            (crime_counts_df["Ward code"] == ward_code) & 
-            (crime_counts_df["Month"] == "2025-03-01"), 
+            (crime_counts_df["Ward code"] == ward_code) &
+            (crime_counts_df["Month"] == "2025-03-01"),
             "burglary_count"
         ].values
         previous_month_crimes = previous_month_crimes[0] if len(previous_month_crimes) > 0 else 0
 
         predicted_crimes = forecasts_df.loc[
-            forecasts_df["Ward code"] == ward_code, 
+            forecasts_df["Ward code"] == ward_code,
             "Predicted_Crime_Count"
         ].values
         predicted_crimes = round(predicted_crimes[0], 2) if len(predicted_crimes) > 0 else "N/A"
@@ -767,13 +767,13 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
         diff_pct = round(abs(diff) / previous_month_crimes * 100, 2) if previous_month_crimes else 0
 
         resource_allocation = forecasts_df.loc[
-            forecasts_df["Ward code"] == ward_code, 
+            forecasts_df["Ward code"] == ward_code,
             "Allocated_Officers_Rounded"
         ].values
         resource_allocation = int(resource_allocation[0]) if len(resource_allocation) > 0 else "N/A"
 
         imd_score = deprivation_df.loc[
-            deprivation_df["Ward code"] == ward_code, 
+            deprivation_df["Ward code"] == ward_code,
             "Index of Multiple Deprivation (IMD) Score"
         ].values
         imd_score = round(imd_score[0], 2) if len(imd_score) > 0 else "N/A"
@@ -814,7 +814,7 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
                     ], width=6),
                     dbc.Col([
                         html.Div([
-                            "Transport Stops", 
+                            "Transport Stops",
                             html.I(className="bi bi-info-circle", id={"type": "transport_stops-tooltip-icon", "index": ward_code}),
                             dbc.Tooltip("Number of Transportatation Stops (bus, train, etc.)", target={"type": "transport_stops-tooltip-icon", "index": ward_code}),
                         ], className="text-muted"),
@@ -1313,44 +1313,97 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
     return None
 
 
-# Callbacks for data display
-# Callbacks for data display
+from dash import dash_table
+
 @app.callback(
     [Output("crime-data-table", "children"),
      Output("crime-data-error", "children")],
-    [Input("month-picker", "value")],
+    [Input("month-picker", "value"),
+     Input("ward-picker", "value")],
     prevent_initial_call=True
 )
-def display_crime_data(month):
+def display_crime_data(month, ward):
     if month:
         try:
-            # Validate month format
             year, month_num = map(int, month.split('-'))
-
-            # Check if date is within valid range
             if (year == 2022 and month_num < 4) or year < 2022 or (year == 2025 and month_num > 3) or year > 2025:
-                return None, "Selected month is out of range. Please select a month between April 2022 and February 2025."
+                return None, "Selected month is out of range. Please select a month between April 2022 and March 2025."
 
-            # Load data for selected month
+            # Load monthly data
             crime_df = load_crime_data(month)
-            filterd_crime_df = crime_df[crime_df["Crime type"] == "Burglary"]
+            crime_df = crime_df[crime_df["Crime type"] == "Burglary"]
 
-            if not crime_df.empty:
+            # Include ward name
+            lookup_path = 'data/lookups/look up LSOA 2021 to ward 2024 merged.csv'
+            lookup = pd.read_csv(lookup_path)
+            lookup.rename(columns={'LSOA21CD': 'LSOA code', 'WD24CD': 'Ward code', 'WD24NM': 'Ward name'}, inplace=True)
+            crime_with_ward_df = crime_df.merge(lookup, on=['LSOA code'], how='left')
+
+            # Optional filtering by ward
+            if ward:
+                crime_with_ward_df = crime_with_ward_df[crime_with_ward_df["Ward code"] == ward]
+
+            if not crime_with_ward_df.empty:
                 return (
-                    html.Div([
-                        dbc.Table.from_dataframe(
-                            filterd_crime_df.head(5),
-                            striped=True,
-                            bordered=True,
-                            hover=True,
-                            responsive=True,
-                            className="table-dark",
-                        )
-                    ]),
+                    dash_table.DataTable(
+                        data=crime_with_ward_df.to_dict('records'),
+                        columns=[{"name": col, "id": col} for col in crime_with_ward_df.columns],
+                        page_size=5,
+                        style_table={
+                            'overflowX': 'auto',
+                            'maxWidth': '100%',
+                            'margin': 'auto',
+                            'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                        },
+                        style_header={
+                            'backgroundColor': '#205081',
+                            'color': '#f0f4f8',
+                            'fontWeight': '600',
+                            'fontSize': '15px',
+                            'border': '1px solid #183b6e',
+                            'textAlign': 'center',
+                            'whiteSpace': 'normal',
+                            'letterSpacing': '0.03em',
+                        },
+                        style_data_conditional=[
+                            {
+                                'if': {'row_index': 'even'},
+                                'backgroundColor': '#d7e0f4',  # Slightly darker light blue for even rows
+                            },
+                            {
+                                'if': {'state': 'active'},  # Hover / active row
+                                'backgroundColor': '#aac4f7',
+                                'border': '1px solid #517acc',
+                            },
+                            {
+                                'if': {'state': 'selected'},  # Selected rows
+                                'backgroundColor': '#8aa6e8',
+                                'border': '1px solid #3f5f9e',
+                                'color': '#f9fafc',  # lighter text on selected
+                                'fontWeight': '600',
+                            }],
+                        style_cell={
+                            'backgroundColor': '#e7edf7',
+                            'color': '#102a54',
+                            'padding': '10px 14px',
+                            'fontSize': '14px',
+                            'border': '1px solid #c1c9de',
+                            'textAlign': 'left',
+                            'whiteSpace': 'normal',
+                            'lineHeight': '1.4',
+                            'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                        },
+                        page_action='native',
+                        filter_action='none',
+                        style_cell_conditional=[
+                            {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
+                            {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+                        ],
+                    ),
                     ""
                 )
             else:
-                return None, f"No data available for {month}"
+                return None, f"No data available for {month}" if not ward else f"No data available for {ward} in {month}"
         except Exception as e:
             return None, f"Error loading data: {str(e)}"
     return None, ""
@@ -1403,7 +1456,7 @@ def display_deprivation_data(n_clicks, toggle_value):
     table = dash_table.DataTable(
         data=display_df.to_dict('records'),
         columns=columns,
-        page_size=6,
+        page_size=5,
         sort_action='native',
         style_table={
             'overflowX': 'auto',
@@ -1451,13 +1504,7 @@ def display_deprivation_data(n_clicks, toggle_value):
                 'border': '1px solid #3f5f9e',
                 'color': '#f9fafc',  # lighter text on selected
                 'fontWeight': '600',
-            },
-            {
-                'if': {'filter_query': '{Income Domain} > 50'},  # conditional red text example
-                'color': '#b3302f',
-                'fontWeight': '700',
-            },
-        ],
+            }],
 
         style_cell_conditional=[
             {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
@@ -1515,7 +1562,7 @@ def display_census_data(n_clicks, toggle_value):
     table = dash_table.DataTable(
         data=display_df.to_dict('records'),
         columns=columns,
-        page_size=6,
+        page_size=5,
         sort_action='native',
         style_table={
             'overflowX': 'auto',
@@ -1563,11 +1610,6 @@ def display_census_data(n_clicks, toggle_value):
                 'border': '1px solid #3f5f9e',
                 'color': '#f9fafc',  # lighter text on selected
                 'fontWeight': '600',
-            },
-            {
-                'if': {'filter_query': '{Income Domain} > 50'},  # conditional red text example
-                'color': '#b3302f',
-                'fontWeight': '700',
             },
         ],
 
