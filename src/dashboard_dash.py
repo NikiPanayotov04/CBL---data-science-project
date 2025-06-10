@@ -323,11 +323,11 @@ def crime_data():
                     html.Ul([
                         html.Li([
                             html.Strong("Crime ID: "),
-                            "Unique identifier for each crime incident."
+                            "Unique identifier for each crime incident"
                         ], className="text-start"),
                         html.Li([
-                            html.Strong("Month: The month when the crime was reported"),
-                            "Measures income deprivation including benefits, tax credits, and low income."
+                            html.Strong("Month: "),
+                            "The month when the crime was reported"
                         ], className="text-start"),
                         html.Li([
                             html.Strong("Reported by: "),
