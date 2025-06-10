@@ -313,34 +313,86 @@ def data_explorer():
 def crime_data():
     return dbc.Card([
         dbc.CardBody([
-            html.H1("Crime Data (2022-2025)", className="card-title"),
-            html.P("Select a month to view the corresponding crime data:", className="card-text text-center"),
+            html.H1("Crime Data", className="card-title"),
+            html.P("Explore burglary crime data from 2022-2025 reported by the Metropolitan Police Service and City of London Police.", className="card-text text-center mb-4"),
 
-            # Month picker
             html.Div([
-                dcc.Dropdown(
-                    id='month-picker',
-                    options=[
-                        {'label': f"{year}-{month:02d}", 'value': f"{year}-{month:02d}"}
-                        for year in range(2022, 2026)
-                        for month in range(1, 13)
-                        if not (year == 2022 and month < 4) and not (year == 2025 and month > 3)
-                        # Only show from Apr 2022 to Feb 2025
-                    ],
-                    value="2022-04",  # Default value set to April 2022
-                    clearable=False,
-                    className="mb-4",
-                    style={'width': '200px'}
-                )
-            ], className="d-flex justify-content-center"),
+                # Attribute descriptions
+                html.Div([
+                    html.H4("About Data Attributes", className="mt-4 mb-3 text-start"),
+                    html.Ul([
+                        html.Li([
+                            html.Strong("Crime ID: "),
+                            "Unique identifier for each crime incident."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Month: The month when the crime was reported"),
+                            "Measures income deprivation including benefits, tax credits, and low income."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Reported by: "),
+                            "The police force that recorded the crime"
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Falls within: "),
+                            "The police force responsible for the area"
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Longitude & Latitude: "),
+                            "Geographic coordinates of the crime location"
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Location: "),
+                            "Street name or area where the crime occurred"
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("LSOA code & name: "),
+                            "Lower Layer Super Output Area identifier and name"
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Crime type: "),
+                            "Category of the crime committed (all are burglary)"
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Last outcome category: "),
+                            "The most recent status or resolution of the case"
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Context: "),
+                            "Additional information about the crime incident"
+                        ], className="text-start"),
+                    ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"})
+                ], className="mb-4"),
 
-            # Data display
-            html.Div(id="crime-data-table", className="mt-3"),
+                # Month picker
+                html.H5("Choose Month", className="text-center mt-4 mb-2"),
+                html.Div([
+                    dcc.Dropdown(
+                        id='month-picker',
+                        options=[
+                            {'label': f"{year}-{month:02d}", 'value': f"{year}-{month:02d}"}
+                            for year in range(2022, 2026)
+                            for month in range(1, 13)
+                            if not (year == 2022 and month < 4) and not (year == 2025 and month > 3)
+                        ],
+                        value="2022-04",  # Default value set to April 2022
+                        clearable=False,
+                        className="mt-3",
+                        style={'width': '200px'}
+                    )
+                ], className="d-flex justify-content-center"),
 
-            # Error message container
-            html.Div(id="crime-data-error", className="text-danger text-center mt-3")
+                html.Hr(),
+
+                # Data display
+                html.Div(id="crime-data-table", className="mt-3"),
+
+                # Error message container
+                html.Div(id="crime-data-error", className="text-danger text-center mt-3")
+            ], className="p-3")
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
+
 
 import dash_bootstrap_components as dbc
 from dash import html, Input, Output, callback
@@ -1262,6 +1314,7 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
 
 
 # Callbacks for data display
+# Callbacks for data display
 @app.callback(
     [Output("crime-data-table", "children"),
      Output("crime-data-error", "children")],
@@ -1283,63 +1336,15 @@ def display_crime_data(month):
             filterd_crime_df = crime_df[crime_df["Crime type"] == "Burglary"]
 
             if not crime_df.empty:
-                # Create attribute descriptions
-                attribute_descriptions = html.Div([
-                    html.H4("About Data Attributes", className="mt-4 mb-3 text-start"),
-                    html.Ul([
-                        html.Li([
-                            html.Strong("Crime ID: "),
-                            "Unique identifier for each crime incident"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Month: "),
-                            "The month when the crime was reported"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Reported by: "),
-                            "The police force that recorded the crime"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Falls within: "),
-                            "The police force responsible for the area"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Longitude & Latitude: "),
-                            "Geographic coordinates of the crime location"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Location: "),
-                            "Street name or area where the crime occurred"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("LSOA code & name: "),
-                            "Lower Layer Super Output Area identifier and name"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Crime type: "),
-                            "Category of the crime committed"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Last outcome category: "),
-                            "The most recent status or resolution of the case"
-                        ], className="text-start"),
-                        html.Li([
-                            html.Strong("Context: "),
-                            "Additional information about the crime incident"
-                        ], className="text-start")
-                    ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"})
-                ], className="mb-4")
-
                 return (
                     html.Div([
-                        attribute_descriptions,
                         dbc.Table.from_dataframe(
-                            filterd_crime_df.head(10),
+                            filterd_crime_df.head(5),
                             striped=True,
                             bordered=True,
                             hover=True,
                             responsive=True,
-                            className="table-dark"
+                            className="table-dark",
                         )
                     ]),
                     ""
