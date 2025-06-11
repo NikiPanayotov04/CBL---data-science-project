@@ -25,6 +25,7 @@ app.title = "Police Forecasting Dashboard"
 
 
 # Data loading functions
+# unprocessed: includes ALL raw crime data, including those outside of London, those without locations, etc.
 def load_crime_data(month=None):
     try:
         if month is None:
@@ -42,7 +43,6 @@ def load_crime_data(month=None):
     except Exception as e:
         print(f"Error loading crime data: {str(e)}")
         return pd.DataFrame()
-
 
 def load_deprivation_data():
     try:
@@ -323,12 +323,13 @@ def crime_data():
     return dbc.Card([
         dbc.CardBody([
             html.H1("Crime Data", className="card-title"),
-            html.P("Explore street-level burglary crime data from 2022–2025 reported by the Metropolitan Police Service and City of London Police.",
-                   className="card-text text-center mb-4"),
+            html.P(
+                "Explore street-level burglary crime data from 2022–2025 reported by the Metropolitan Police Service and City of London Police.",
+                className="card-text text-center mb-4"
+            ),
 
             html.Div([
-
-                # Attribute descriptions
+                # About Data Attributes
                 html.Div([
                     html.H4("About Data Attributes", className="mt-4 mb-3 text-start"),
                     html.Ul([
@@ -347,6 +348,7 @@ def crime_data():
 
                 html.Hr(),
 
+                # Filters
                 # Filters section
                 html.Div([
                     html.H5("Filter Crime Data", className="text-center mt-4 mb-3"),
@@ -384,15 +386,19 @@ def crime_data():
 
                 ], className="d-flex justify-content-center flex-wrap gap-3 mb-4"),
 
-                # Data display
-                html.Div(id="crime-data-table", className="mt-3"),
 
-                # Error message container
-                html.Div(id="crime-data-error", className="text-danger text-center mt-3")
+                # Data Table
+                html.Div([
+                    html.Div(id="crime-data-table"),
+                    html.Div(id="crime-data-error", className="text-danger text-center mt-3")
+                ]),
+
+                # Visualizations Placeholder (shown only when filters applied)
+                html.Div(id="crime-visualizations", className="mt-5")
+
             ], className="p-3")
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
-
 
 import dash_bootstrap_components as dbc
 from dash import html, Input, Output, callback
@@ -1315,9 +1321,14 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
 
 from dash import dash_table
 
+from dash import Output, Input, dcc
+import dash_table
+import plotly.express as px
+
 @app.callback(
     [Output("crime-data-table", "children"),
-     Output("crime-data-error", "children")],
+     Output("crime-data-error", "children"),
+     Output("crime-visualizations", "children")],
     [Input("month-picker", "value"),
      Input("ward-picker", "value")],
     prevent_initial_call=True
@@ -1327,86 +1338,157 @@ def display_crime_data(month, ward):
         try:
             year, month_num = map(int, month.split('-'))
             if (year == 2022 and month_num < 4) or year < 2022 or (year == 2025 and month_num > 3) or year > 2025:
-                return None, "Selected month is out of range. Please select a month between April 2022 and March 2025."
+                return None, "Selected month is out of range. Please select a month between April 2022 and March 2025.", None
 
-            # Load monthly data
-            crime_df = load_crime_data(month)
-            crime_df = crime_df[crime_df["Crime type"] == "Burglary"]
+            selected_month = pd.Timestamp(year=year, month=month_num, day=1)
 
-            # Include ward name
-            lookup_path = 'data/lookups/look up LSOA 2021 to ward 2024 merged.csv'
-            lookup = pd.read_csv(lookup_path)
-            lookup.rename(columns={'LSOA21CD': 'LSOA code', 'WD24CD': 'Ward code', 'WD24NM': 'Ward name'}, inplace=True)
-            crime_with_ward_df = crime_df.merge(lookup, on=['LSOA code'], how='left')
-
-            # Optional filtering by ward
+            # Filter for display table
+            crime_df = burglaries_df[burglaries_df['Month'] == selected_month].copy()
+            crime_df['Month'] = month
             if ward:
-                crime_with_ward_df = crime_with_ward_df[crime_with_ward_df["Ward code"] == ward]
+                crime_df = crime_df[crime_df["Ward code"] == ward]
 
-            if not crime_with_ward_df.empty:
-                return (
-                    dash_table.DataTable(
-                        data=crime_with_ward_df.to_dict('records'),
-                        columns=[{"name": col, "id": col} for col in crime_with_ward_df.columns],
-                        page_size=5,
-                        style_table={
-                            'overflowX': 'auto',
-                            'maxWidth': '100%',
-                            'margin': 'auto',
-                            'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                        },
-                        style_header={
-                            'backgroundColor': '#205081',
-                            'color': '#f0f4f8',
-                            'fontWeight': '600',
-                            'fontSize': '15px',
-                            'border': '1px solid #183b6e',
-                            'textAlign': 'center',
-                            'whiteSpace': 'normal',
-                            'letterSpacing': '0.03em',
-                        },
-                        style_data_conditional=[
-                            {
-                                'if': {'row_index': 'even'},
-                                'backgroundColor': '#d7e0f4',  # Slightly darker light blue for even rows
-                            },
-                            {
-                                'if': {'state': 'active'},  # Hover / active row
-                                'backgroundColor': '#aac4f7',
-                                'border': '1px solid #517acc',
-                            },
-                            {
-                                'if': {'state': 'selected'},  # Selected rows
-                                'backgroundColor': '#8aa6e8',
-                                'border': '1px solid #3f5f9e',
-                                'color': '#f9fafc',  # lighter text on selected
-                                'fontWeight': '600',
-                            }],
-                        style_cell={
-                            'backgroundColor': '#e7edf7',
-                            'color': '#102a54',
-                            'padding': '10px 14px',
-                            'fontSize': '14px',
-                            'border': '1px solid #c1c9de',
-                            'textAlign': 'left',
-                            'whiteSpace': 'normal',
-                            'lineHeight': '1.4',
-                            'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                        },
-                        page_action='native',
-                        filter_action='none',
-                        style_cell_conditional=[
-                            {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
-                            {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
-                        ],
-                    ),
-                    ""
+            # Full time range for line/bar chart
+            all_months = pd.date_range(start="2022-04-01", end="2025-03-01", freq='MS')
+
+            # Prepare trend df
+            trend_df = burglaries_df.copy()
+            if ward:
+                trend_df = trend_df[trend_df["Ward code"] == ward]
+
+            trend_counts = (
+                trend_df.groupby("Month")
+                .size()
+                .reindex(all_months, fill_value=0)
+                .reset_index(name="Crime count")
+                .rename(columns={"index": "Month"})
+            )
+
+            # Line chart with red marker for selected month
+            line_fig = px.line(trend_counts, x="Month", y="Crime count",
+                               title=f"Monthly Burglary Trend{' for ward code ' + ward if ward else ''}",
+                               markers=True)
+
+            # Add red dot for selected month
+            if selected_month in trend_counts["Month"].values:
+                selected_point = trend_counts[trend_counts["Month"] == selected_month]
+
+            # Improve layout
+            # DARK MODE
+            line_fig.update_layout(
+                plot_bgcolor="#1e1e1e",  # dark plot area
+                paper_bgcolor="#121212",  # darker outer area
+                font=dict(color="#f0f0f0"),  # light text
+                title_font_size=18,
+                margin=dict(t=40, b=40, l=40, r=40),
+                xaxis=dict(gridcolor='#333333'),
+                yaxis=dict(gridcolor="#333333"),
+                legend=dict(
+                    x=0.99, y=0.99,
+                    xanchor="right", yanchor="top",
+                    bgcolor="rgba(30,30,30,0.6)",  # semi-dark background
+                    bordercolor="#444444",
+                    borderwidth=1,
+                    font=dict(size=12, color="#ffffff")
                 )
+            )
+            line_fig.update_traces(line=dict(color="#00cfff"), marker=dict(color="#00cfff"))
+
+            line_fig.add_scatter(
+                x=selected_point["Month"],
+                y=selected_point["Crime count"],
+                mode="markers",
+                marker=dict(color="#ff0000", size=12),
+                name="Selected Month"
+            )
+            # Monthly seasonal pattern
+            seasonal_df = trend_df.copy()
+            seasonal_df['Month name'] = seasonal_df['Month'].dt.month_name()
+
+            month_order = ['January', 'February', 'March', 'April', 'May', 'June',
+                           'July', 'August', 'September', 'October', 'November', 'December']
+
+            monthly_counts = (seasonal_df.groupby("Month name")
+                              .size()
+                              .reindex(month_order, fill_value=0)
+                              .reset_index(name="Crime count"))
+
+            bar_fig = px.bar(monthly_counts, x="Month name", y="Crime count",
+                             title=f"Total Crimes by Month{' for ward code ' + ward if ward else ''}")
+
+            # LIGHT MODE
+            # bar_fig.update_layout(
+            #     plot_bgcolor="#f8f9fb",
+            #     paper_bgcolor="#f8f9fb",
+            #     font=dict(color="#102a54"),
+            #     title_font_size=18,
+            #     margin=dict(t=40, b=40, l=40, r=40)
+            # )
+
+            # DARK MODe
+            bar_fig.update_layout(
+                plot_bgcolor="#1e1e1e",
+                paper_bgcolor="#121212",
+                font=dict(color="#f0f0f0"),
+                title_font_size=18,
+                margin=dict(t=40, b=40, l=40, r=40),
+                xaxis=dict(showgrid=False),
+                yaxis=dict(gridcolor="#333333"),
+                legend=dict(visible=False)
+            )
+            bar_fig.update_traces(marker_color="#00cfff")
+
+            visualizations = html.Div([
+                html.Hr(),
+                html.H4("Crime Trends", className="text-start mb-3"),
+                dcc.Graph(figure=line_fig),
+                html.Hr(),
+                dcc.Graph(figure=bar_fig)
+            ])
+
+            # If filtered table has content
+            if not crime_df.empty:
+                table = dash_table.DataTable(
+                    data=crime_df.to_dict('records'),
+                    columns=[{"name": col, "id": col} for col in crime_df.columns],
+                    page_size=5,
+                    style_table={
+                        'overflowX': 'auto', 'maxWidth': '100%', 'margin': 'auto',
+                        'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                    },
+                    style_header={
+                        'backgroundColor': '#205081', 'color': '#f0f4f8', 'fontWeight': '600',
+                        'fontSize': '15px', 'border': '1px solid #183b6e',
+                        'textAlign': 'center', 'whiteSpace': 'normal', 'letterSpacing': '0.03em',
+                    },
+                    style_data_conditional=[
+                        {'if': {'row_index': 'even'}, 'backgroundColor': '#d7e0f4'},
+                        {'if': {'state': 'active'}, 'backgroundColor': '#aac4f7', 'border': '1px solid #517acc'},
+                        {'if': {'state': 'selected'}, 'backgroundColor': '#8aa6e8',
+                         'border': '1px solid #3f5f9e', 'color': '#f9fafc', 'fontWeight': '600'},
+                    ],
+                    style_cell={
+                        'backgroundColor': '#e7edf7', 'color': '#102a54',
+                        'padding': '10px 14px', 'fontSize': '14px',
+                        'border': '1px solid #c1c9de', 'textAlign': 'left',
+                        'whiteSpace': 'normal', 'lineHeight': '1.4',
+                        'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+                    },
+                    page_action='native',
+                    filter_action='native',
+                    style_cell_conditional=[
+                        {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
+                        {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+                    ],
+                )
+                return table, "", visualizations
             else:
-                return None, f"No data available for {month}" if not ward else f"No data available for {ward} in {month}"
+                return None, f"No data available for {month}" if not ward else f"No data for {ward} in {month}", visualizations
+
         except Exception as e:
-            return None, f"Error loading data: {str(e)}"
-    return None, ""
+            return None, f"Error loading data: {str(e)}", None
+
+    return None, "", None
 
 
 from dash import Input, Output, State
@@ -1512,7 +1594,7 @@ def display_deprivation_data(n_clicks, toggle_value):
         ],
 
         page_action='native',
-        filter_action='none',
+        filter_action='native',
     )
 
     return table, {"display": "block"}
@@ -1619,7 +1701,7 @@ def display_census_data(n_clicks, toggle_value):
         ],
 
         page_action='native',
-        filter_action='none',
+        filter_action='native',
     )
 
     return table, {"display": "block"}
