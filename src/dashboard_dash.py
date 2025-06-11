@@ -499,7 +499,11 @@ def deprivation_data():
 
                     # Deprivation Table
                     html.Div(id="deprivation-data-table"),
-                ], id="deprivation-content", style={"display": "none"})  # Initially hidden
+                ], id="deprivation-content", style={"display": "none"}),  # Initially hidden
+
+                    # Correlation Heatmap of Deprivation Scores
+                    html.Div(id="deprivation-correlation-features", className="mt-5")
+
             ], className="p-3")
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
@@ -1366,7 +1370,7 @@ def display_crime_data(month, ward):
 
             # Line chart with red marker for selected month
             line_fig = px.line(trend_counts, x="Month", y="Crime count",
-                               title=f"Monthly Burglary Trend{' for ward code ' + ward if ward else ''}",
+                               title=f"Monthly Burglary Trend{' for Ward code ' + ward if ward else ''}",
                                markers=True)
 
             # Add red dot for selected month
@@ -1414,7 +1418,7 @@ def display_crime_data(month, ward):
                               .reset_index(name="Crime count"))
 
             bar_fig = px.bar(monthly_counts, x="Month name", y="Crime count",
-                             title=f"Total Crimes by Month{' for ward code ' + ward if ward else ''}")
+                             title=f"Total Crimes by Month{' for Ward code ' + ward if ward else ''}")
 
             # LIGHT MODE
             # bar_fig.update_layout(
@@ -1493,9 +1497,13 @@ def display_crime_data(month, ward):
 
 from dash import Input, Output, State
 
+import plotly.express as px
+from dash import dcc
+
 @app.callback(
     [
         Output("deprivation-data-table", "children"),
+        Output("deprivation-correlation-features", "children"),
         Output("deprivation-content", "style"),
     ],
     [
@@ -1509,18 +1517,19 @@ def display_deprivation_data(n_clicks, toggle_value):
 
     if not n_clicks or n_clicks % 2 == 0:
         # Hide content if button hasn't been clicked or on even clicks
-        return None, {"display": "none"}
+        return None, None, {"display": "none"}
 
     deprivation_df = load_deprivation_data()  # Your data loading function
 
     if deprivation_df.empty:
         return (
             html.Div("No deprivation data available", className="text-danger"),
+            None,
             {"display": "none"},
         )
 
     if "ward" in toggle_value:
-        # Aggregate to ward level (simple mean as per your original code)
+        # Aggregate to ward level (simple mean)
         ward_df = deprivation_df.groupby(['Ward code', 'Ward name']).mean(numeric_only=True).reset_index()
         display_df = ward_df
     else:
@@ -1534,7 +1543,7 @@ def display_deprivation_data(n_clicks, toggle_value):
     # Prepare columns for DataTable
     columns = [{"name": col, "id": col} for col in display_df.columns]
 
-    # Dash DataTable with native sorting enabled and pagination (page size = 6)
+    # Create DataTable
     table = dash_table.DataTable(
         data=display_df.to_dict('records'),
         columns=columns,
@@ -1546,10 +1555,9 @@ def display_deprivation_data(n_clicks, toggle_value):
             'margin': 'auto',
             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
         },
-
         style_header={
-            'backgroundColor': '#205081',  # Medium Navy Blue header
-            'color': '#f0f4f8',  # Very light grey text
+            'backgroundColor': '#205081',
+            'color': '#f0f4f8',
             'fontWeight': '600',
             'fontSize': '15px',
             'border': '1px solid #183b6e',
@@ -1557,10 +1565,9 @@ def display_deprivation_data(n_clicks, toggle_value):
             'whiteSpace': 'normal',
             'letterSpacing': '0.03em',
         },
-
         style_cell={
-            'backgroundColor': '#e7edf7',  # Very light blue background for cells
-            'color': '#102a54',  # Darker blue text for contrast
+            'backgroundColor': '#e7edf7',
+            'color': '#102a54',
             'padding': '10px 14px',
             'fontSize': '14px',
             'border': '1px solid #c1c9de',
@@ -1569,35 +1576,76 @@ def display_deprivation_data(n_clicks, toggle_value):
             'lineHeight': '1.4',
             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
         },
-
         style_data_conditional=[
-            {
-                'if': {'row_index': 'even'},
-                'backgroundColor': '#d7e0f4',  # Slightly darker light blue for even rows
-            },
-            {
-                'if': {'state': 'active'},  # Hover / active row
-                'backgroundColor': '#aac4f7',
-                'border': '1px solid #517acc',
-            },
-            {
-                'if': {'state': 'selected'},  # Selected rows
-                'backgroundColor': '#8aa6e8',
-                'border': '1px solid #3f5f9e',
-                'color': '#f9fafc',  # lighter text on selected
-                'fontWeight': '600',
-            }],
-
+            {'if': {'row_index': 'even'}, 'backgroundColor': '#d7e0f4'},
+            {'if': {'state': 'active'}, 'backgroundColor': '#aac4f7', 'border': '1px solid #517acc'},
+            {'if': {'state': 'selected'}, 'backgroundColor': '#8aa6e8',
+             'border': '1px solid #3f5f9e', 'color': '#f9fafc', 'fontWeight': '600'},
+        ],
         style_cell_conditional=[
             {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
             {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
         ],
-
         page_action='native',
         filter_action='native',
     )
 
-    return table, {"display": "block"}
+    # Filter columns with "Score" in the name for correlation
+    score_cols = [col for col in display_df.columns if 'Score' in col]
+    rename_cols = {'Index of Multiple Deprivation (IMD) Score': 'IMD',
+                   'Income Score': 'Income',
+                   'Employment Score': 'Employment',
+                   'Education, Skills and Training Score': 'Education',
+                   'Health Deprivation and Disability Score': 'Health',
+                   'Crime Score': 'Crime',
+                   'Barriers to Housing and Services Score': 'Housing',
+                   'Living Environment Score': 'Living'}
+
+    corr_df = display_df[score_cols].rename(columns=rename_cols).corr()
+
+    fig = px.imshow(
+        corr_df,
+        text_auto='.2f',
+        aspect='auto',
+        color_continuous_scale='RdBu_r',
+        origin='upper',
+        title=f'Correlation Matrix of Deprivation Scores at {"LSOA-level" if not "ward" in toggle_value else "Ward-level"}',
+        labels=dict(x="Features", y="Features", color="Correlation"),
+    )
+    fig.update_layout(
+        margin=dict(l=40, r=40, t=60, b=40),
+        height=700,
+        plot_bgcolor='#121212',  # Dark plot background
+        paper_bgcolor='#121212',  # Dark paper (overall) background
+        font=dict(color='white'),  # White font color for text
+        xaxis=dict(
+            tickangle=45,  # Rotate x-axis labels
+            tickfont=dict(color='white'),
+            showgrid=False,
+            zeroline=False,
+            linecolor='white',
+            mirror=True,
+        ),
+        yaxis=dict(
+            tickfont=dict(color='white'),
+            showgrid=False,
+            zeroline=False,
+            linecolor='white',
+            mirror=True,
+        ),
+        coloraxis_colorbar=dict(
+            title_font=dict(color='white'),
+            tickfont=dict(color='white'),
+            bgcolor='#121212',
+        )
+    )
+
+    corr_graph = html.Div([
+        html.Hr(),
+        html.H4("Correlation Between Features", className="text-start mb-3"),
+        dcc.Graph(figure=fig)])
+
+    return table, corr_graph, {"display": "block"}
 
 @app.callback(
     [
