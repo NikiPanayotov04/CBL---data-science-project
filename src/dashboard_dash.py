@@ -1525,7 +1525,7 @@ def display_deprivation_data(n_clicks, toggle_value):
 
     if "ward" in toggle_value:
         # Aggregate to ward level (simple mean)
-        ward_df = deprivation_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
+        ward_df = deprivation_df.groupby(['Ward code', 'Ward name']).mean(numeric_only=True).reset_index()
         display_df = ward_df
     else:
         # Show LSOA level data
@@ -1653,7 +1653,7 @@ def display_deprivation_data(n_clicks, toggle_value):
     ],
     prevent_initial_call=True
 )
-def load_table(n_clicks, toggle_value):
+def display_census_data(n_clicks, toggle_value):
     census_df = load_census_data()
     if census_df.empty:
         return html.Div("No data available", className="text-danger"), {"display": "none"}
