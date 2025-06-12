@@ -530,8 +530,8 @@ def census_data():
                         "Breakdown of household composition including single-person households and family structures"
                     ], className="text-start"),
                     html.Li([
-                        html.Strong("Dwelling Types: "),
-                        "Distribution of different dwelling types (detached, semi-detached, terraced, flats)"
+                        html.Strong("Accommodation Types: "),
+                        "Distribution of different accommodation types (detached, semi-detached, terraced, flats)"
                     ], className="text-start"),
                     html.Li([
                         html.Strong("Occupancy Rating: "),
@@ -1424,15 +1424,6 @@ def display_crime_data(month, ward):
             bar_fig = px.bar(monthly_counts, x="Month name", y="Crime count",
                              title=f"Total Crimes by Month{' for Ward code ' + ward if ward else ''}")
 
-            # LIGHT MODE
-            # bar_fig.update_layout(
-            #     plot_bgcolor="#f8f9fb",
-            #     paper_bgcolor="#f8f9fb",
-            #     font=dict(color="#102a54"),
-            #     title_font_size=18,
-            #     margin=dict(t=40, b=40, l=40, r=40)
-            # )
-
             # DARK MODe
             bar_fig.update_layout(
                 plot_bgcolor="#1e1e2f",
@@ -1670,11 +1661,16 @@ def load_table(n_clicks, toggle_value):
     is_ward = "ward" in toggle_value
     if is_ward:
         display_df = census_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
+        display_df["id"] = display_df["Ward code"]  # Set row ID internally
     else:
         display_df = census_df.set_index(['LSOA code', 'LSOA name']).reset_index()
 
     display_df = display_df.round(2)
-    columns = [{"name": col, "id": col} for col in display_df.columns]
+
+    columns = [
+        {"name": col, "id": col}
+        for col in display_df.columns if col != "id"  # Hide 'id' from display
+    ]
 
     table = dash_table.DataTable(
         id='census-table',
@@ -1682,17 +1678,19 @@ def load_table(n_clicks, toggle_value):
         columns=columns,
         page_size=5,
         sort_action='native',
+        filter_action='native',
         cell_selectable=True,
+        row_selectable="single" if is_ward else False,
+        selected_row_ids=[] if is_ward else None,  # Optional: provide default
         style_table={
             'overflowX': 'auto',
             'maxWidth': '100%',
             'margin': 'auto',
             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
         },
-
         style_header={
-            'backgroundColor': '#205081',  # Medium Navy Blue header
-            'color': '#f0f4f8',  # Very light grey text
+            'backgroundColor': '#205081',
+            'color': '#f0f4f8',
             'fontWeight': '600',
             'fontSize': '15px',
             'border': '1px solid #183b6e',
@@ -1700,10 +1698,9 @@ def load_table(n_clicks, toggle_value):
             'whiteSpace': 'normal',
             'letterSpacing': '0.03em',
         },
-
         style_cell={
-            'backgroundColor': '#e7edf7',  # Very light blue background for cells
-            'color': '#102a54',  # Darker blue text for contrast
+            'backgroundColor': '#e7edf7',
+            'color': '#102a54',
             'padding': '10px 14px',
             'fontSize': '14px',
             'border': '1px solid #c1c9de',
@@ -1712,49 +1709,31 @@ def load_table(n_clicks, toggle_value):
             'lineHeight': '1.4',
             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
         },
-
         style_data_conditional=[
-            {
-                'if': {'row_index': 'even'},
-                'backgroundColor': '#d7e0f4',  # Slightly darker light blue for even rows
-            },
-            {
-                'if': {'state': 'active'},  # Hover / active row
-                'backgroundColor': '#aac4f7',
-                'border': '1px solid #517acc',
-            },
-            {
-                'if': {'state': 'selected'},  # Selected rows
-                'backgroundColor': '#8aa6e8',
-                'border': '1px solid #3f5f9e',
-                'color': '#f9fafc',  # lighter text on selected
-                'fontWeight': '600',
-            },
+            {'if': {'row_index': 'even'}, 'backgroundColor': '#d7e0f4'},
+            {'if': {'state': 'active'}, 'backgroundColor': '#aac4f7', 'border': '1px solid #517acc'},
+            {'if': {'state': 'selected'}, 'backgroundColor': '#8aa6e8',
+             'border': '1px solid #3f5f9e', 'color': '#f9fafc', 'fontWeight': '600'},
         ],
-
         style_cell_conditional=[
             {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
             {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
-        ],
-
-        page_action='native',
-        filter_action='native',
+        ]
     )
 
     return table, {"display": "block"}
+
 
 @app.callback(
     Output("census-visualizations", "children"),
     [
         Input("btn-census", "n_clicks"),
-        Input("census-table", "active_cell")
+        Input("census-table", "selected_rows")
     ],
     State("census-toggle", "value"),
-    State("census-table", "page_current"),
-    State("census-table", "page_size"),
     prevent_initial_call=True
 )
-def update_visuals(n_clicks, active_cell, toggle_value, page_current, page_size):
+def update_visuals(n_clicks, selected_rows, toggle_value):
     census_df = load_census_data()
     if census_df.empty:
         return None
@@ -1763,12 +1742,13 @@ def update_visuals(n_clicks, active_cell, toggle_value, page_current, page_size)
 
     if is_ward:
         grouped_df = census_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
+        key_col = 'Ward code'
     else:
         grouped_df = census_df.set_index(['LSOA code', 'LSOA name']).reset_index()
+        key_col = 'LSOA code'
 
     total = grouped_df.sum(numeric_only=True)
 
-    # --- Visualization function ---
     def make_grouped_bar(data_selected, data_total, title):
         fig = go.Figure()
         fig.add_trace(go.Bar(
@@ -1825,7 +1805,7 @@ def update_visuals(n_clicks, active_cell, toggle_value, page_current, page_size)
 
         return dcc.Graph(figure=make_grouped_bar(sel_data, total_data, title))
 
-    # --- Define columns ---
+    # --- Define sections ---
     demography_cols = ['65 years and older', '15 to 64 years', 'Under 15 years']
     household_cols = ['Other household types', 'Single family household',
                       'One-person household: Other', 'One-person household: Aged 66 years and over']
@@ -1836,28 +1816,14 @@ def update_visuals(n_clicks, active_cell, toggle_value, page_current, page_size)
     dwelling_cols = ['Unoccupied dwellings', 'Total: Occupied dwellings']
 
     sel_vals = None
-
-    if not page_current:
-        page_current = 0
-
-    if active_cell:
-        # need current page and page size to find correct index
-        row_idx = active_cell['row'] + (page_current)*page_size
-
-        # fallback: determine key column
-        key_col = 'Ward code' if is_ward else 'LSOA code'
-        key_val = grouped_df.iloc[row_idx][key_col]
-
-        if is_ward:
-            sel_row = grouped_df[grouped_df['Ward code'] == key_val]
-        else:
-            sel_row = grouped_df[grouped_df['LSOA code'] == key_val]
-
-        if not sel_row.empty:
-            sel_vals = sel_row.iloc[0][total.index]
+    if is_ward and selected_rows and len(selected_rows) > 0:
+        sel_index = selected_rows[0]
+        if sel_index < len(grouped_df):
+            sel_row = grouped_df.iloc[sel_index]
+            sel_vals = sel_row[total.index]
 
     selection_note = html.P(
-        "Tip: Click on a cell in the 'Ward code' column to compare that area with the totals.",
+        "Tip: Select a row to compare that ward against overall figures.",
         className="text-info fst-italic mb-3"
     ) if is_ward else html.P(
         "LSOA-level selection is currently not supported for detailed comparison.",
@@ -1873,7 +1839,6 @@ def update_visuals(n_clicks, active_cell, toggle_value, page_current, page_size)
         build_comparison(accommodation_cols, "Accommodation Types (%)", sel_vals[accommodation_cols] if sel_vals is not None else None),
         build_comparison(dwelling_cols, "Dwelling Occupancy (%)", sel_vals[dwelling_cols] if sel_vals is not None else None),
     ])
-
 
 # Add callback to control submenu visibility
 @app.callback(
