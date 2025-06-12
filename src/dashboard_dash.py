@@ -502,7 +502,7 @@ def deprivation_data():
                 ], id="deprivation-content", style={"display": "none"}),  # Initially hidden
 
                     # Correlation Heatmap of Deprivation Scores
-                    html.Div(id="deprivation-correlation-features", className="mt-5")
+                    html.Div(id="deprivation-visualizations", className="mt-5")
 
             ], className="p-3")
         ])
@@ -573,9 +573,13 @@ def census_data():
                         ),
                     ], className="text-center"),
 
-                    # Deprivation Table
+                    # Census Table
                     html.Div(id="census-data-table"),
-                ], id="census-content", style={"display": "none"})  # Initially hidden
+                ], id="census-content", style={"display": "none"}),  # Initially hidden
+
+                    # Census Visualizations (Barcharts for Four Areas)
+                    html.Div(id="census-visualizations", className="mt-5")
+
             ], className="p-3")
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
@@ -1380,8 +1384,8 @@ def display_crime_data(month, ward):
             # Improve layout
             # DARK MODE
             line_fig.update_layout(
-                plot_bgcolor="#1e1e1e",  # dark plot area
-                paper_bgcolor="#121212",  # darker outer area
+                plot_bgcolor="#1e1e2f",  # dark plot area
+                paper_bgcolor="#1e1e2f",  # darker outer area
                 font=dict(color="#f0f0f0"),  # light text
                 title_font_size=18,
                 margin=dict(t=40, b=40, l=40, r=40),
@@ -1431,8 +1435,8 @@ def display_crime_data(month, ward):
 
             # DARK MODe
             bar_fig.update_layout(
-                plot_bgcolor="#1e1e1e",
-                paper_bgcolor="#121212",
+                plot_bgcolor="#1e1e2f",
+                paper_bgcolor="#1e1e2f",
                 font=dict(color="#f0f0f0"),
                 title_font_size=18,
                 margin=dict(t=40, b=40, l=40, r=40),
@@ -1503,7 +1507,7 @@ from dash import dcc
 @app.callback(
     [
         Output("deprivation-data-table", "children"),
-        Output("deprivation-correlation-features", "children"),
+        Output("deprivation-visualizations", "children"),
         Output("deprivation-content", "style"),
     ],
     [
@@ -1530,7 +1534,7 @@ def display_deprivation_data(n_clicks, toggle_value):
 
     if "ward" in toggle_value:
         # Aggregate to ward level (simple mean)
-        ward_df = deprivation_df.groupby(['Ward code', 'Ward name']).mean(numeric_only=True).reset_index()
+        ward_df = deprivation_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
         display_df = ward_df
     else:
         # Show LSOA level data
@@ -1615,8 +1619,8 @@ def display_deprivation_data(n_clicks, toggle_value):
     fig.update_layout(
         margin=dict(l=40, r=40, t=60, b=40),
         height=700,
-        plot_bgcolor='#121212',  # Dark plot background
-        paper_bgcolor='#121212',  # Dark paper (overall) background
+        plot_bgcolor='#1e1e2f',  # Dark plot background
+        paper_bgcolor='#1e1e2f',  # Dark paper (overall) background
         font=dict(color='white'),  # White font color for text
         xaxis=dict(
             tickangle=45,  # Rotate x-axis labels
@@ -1636,7 +1640,7 @@ def display_deprivation_data(n_clicks, toggle_value):
         coloraxis_colorbar=dict(
             title_font=dict(color='white'),
             tickfont=dict(color='white'),
-            bgcolor='#121212',
+            bgcolor='#1e1e2f',
         )
     )
 
@@ -1647,53 +1651,416 @@ def display_deprivation_data(n_clicks, toggle_value):
 
     return table, corr_graph, {"display": "block"}
 
+# @app.callback(
+#     [
+#         Output("census-data-table", "children"),
+#         Output("census-content", "style"),
+#         Output("census-visualizations", "children")
+#     ],
+#     [
+#         Input("btn-census", "n_clicks"),
+#         Input("census-toggle", "value"),
+#         Input("census-table", "active_cell")
+#     ],
+#     prevent_initial_call=True
+# )
+# def display_census_data(n_clicks, toggle_value, active_cell):
+#     import pandas as pd
+#     from dash import html, dcc
+#     import plotly.graph_objects as go
+#
+#     print(active_cell)
+#     def make_grouped_bar(data_total, data_selected, title):
+#         fig = go.Figure()
+#         fig.add_trace(go.Bar(
+#             x=data_total['label'],
+#             y=data_total['value'],
+#             name='All Areas (%)',
+#             hovertext=data_total['hover'],
+#             marker_color='rgba(70,130,180,0.7)'
+#         ))
+#         fig.add_trace(go.Bar(
+#             x=data_selected['label'],
+#             y=data_selected['value'],
+#             name='Selected Area (%)',
+#             hovertext=data_selected['hover'],
+#             marker_color='rgba(255,99,71,0.7)'
+#         ))
+#         fig.update_layout(
+#             barmode='group',
+#             title=title,
+#             yaxis_title='Percentage (%)',
+#             xaxis_title='Category',
+#             legend=dict(x=0.7, y=1.15, orientation="h"),
+#             height=400
+#         )
+#         return fig
+#
+#     if not n_clicks or n_clicks % 2 == 0:
+#         return None, {"display": "none"}, None
+#
+#     # Load data
+#     census_df = load_census_data()
+#     if census_df.empty:
+#         return html.Div("No data available", className="text-danger"), {"display": "none"}, None
+#
+#     is_ward = "ward" in toggle_value
+#     id_col = "Ward code" if is_ward else "LSOA code"
+#
+#     # Prepare display dataframe
+#     if is_ward:
+#         display_df = census_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
+#     else:
+#         display_df = census_df.copy()
+#
+#     display_df = display_df.round(2)
+#
+#     # Prepare columns for DataTable
+#     columns = [{"name": col, "id": col} for col in display_df.columns]
+#
+#     # Dash DataTable with native sorting enabled and pagination (page size = 6)
+#     table = dash_table.DataTable(
+#         id='census-table',
+#         data=display_df.to_dict('records'),
+#         columns=columns,
+#         page_size=5,
+#         sort_action='native',
+#         cell_selectable=True,
+#         style_table={
+#             'overflowX': 'auto',
+#             'maxWidth': '100%',
+#             'margin': 'auto',
+#             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+#         },
+#
+#         style_header={
+#             'backgroundColor': '#205081',  # Medium Navy Blue header
+#             'color': '#f0f4f8',  # Very light grey text
+#             'fontWeight': '600',
+#             'fontSize': '15px',
+#             'border': '1px solid #183b6e',
+#             'textAlign': 'center',
+#             'whiteSpace': 'normal',
+#             'letterSpacing': '0.03em',
+#         },
+#
+#         style_cell={
+#             'backgroundColor': '#e7edf7',  # Very light blue background for cells
+#             'color': '#102a54',  # Darker blue text for contrast
+#             'padding': '10px 14px',
+#             'fontSize': '14px',
+#             'border': '1px solid #c1c9de',
+#             'textAlign': 'left',
+#             'whiteSpace': 'normal',
+#             'lineHeight': '1.4',
+#             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+#         },
+#
+#         style_data_conditional=[
+#             {
+#                 'if': {'row_index': 'even'},
+#                 'backgroundColor': '#d7e0f4',  # Slightly darker light blue for even rows
+#             },
+#             {
+#                 'if': {'state': 'active'},  # Hover / active row
+#                 'backgroundColor': '#aac4f7',
+#                 'border': '1px solid #517acc',
+#             },
+#             {
+#                 'if': {'state': 'selected'},  # Selected rows
+#                 'backgroundColor': '#8aa6e8',
+#                 'border': '1px solid #3f5f9e',
+#                 'color': '#f9fafc',  # lighter text on selected
+#                 'fontWeight': '600',
+#             },
+#         ],
+#
+#         style_cell_conditional=[
+#             {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
+#             {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+#         ],
+#
+#         page_action='native',
+#         filter_action='native',
+#     )
+#
+#     ## --- BEGIN Visualizations ---
+#     # Total (all areas)
+#     total = display_df.sum(numeric_only=True)
+#
+#     # If a cell was clicked and it's in Ward or LSOA code column
+#     selected_row = None
+#     if active_cell and active_cell["column_id"] == id_col:
+#         selected_row = display_df.iloc[active_cell["row"]]
+#
+#     def build_comparison(section_cols, title):
+#         total_vals = total[section_cols]
+#         total_sum = total_vals.sum()
+#         total_data = pd.DataFrame({
+#             "label": section_cols,
+#             "value": (total_vals / total_sum * 100).round(2),
+#             "hover": total_vals.astype(int).astype(str) + " people"
+#         })
+#
+#         if selected_row is not None:
+#             sel_vals = selected_row[section_cols]
+#             sel_sum = sel_vals.sum()
+#             sel_data = pd.DataFrame({
+#                 "label": section_cols,
+#                 "value": (sel_vals / sel_sum * 100).round(2),
+#                 "hover": sel_vals.astype(int).astype(str) + " people"
+#             })
+#         else:
+#             sel_data = total_data.copy()
+#             sel_data['value'] = 0
+#             sel_data['hover'] = ["N/A"] * len(sel_data)
+#
+#         return dcc.Graph(figure=make_grouped_bar(total_data, sel_data, title))
+#
+#     # Define your categories
+#     demography_cols = ['Under 15 years', '15 to 64 years', '65 years and older']
+#     household_cols = [
+#         'One-person household: Aged 66 years and over',
+#         'One-person household: Other',
+#         'Single family household',
+#         'Other household types'
+#     ]
+#     accommodation_cols = [
+#         'Detached whole house or bungalow',
+#         'Semi-detached whole house or bungalow',
+#         'Terraced whole house or bungalow',
+#         'Flat, maisonette or apartment',
+#         'A caravan or other mobile or temporary structure',
+#     ]
+#     dwelling_cols = [
+#         'Total: Occupied dwellings',
+#         'Unoccupied dwellings'
+#     ]
+#
+#     # Build visualizations
+#     visualizations = html.Div([
+#         build_comparison(demography_cols, "Population Demography (%)"),
+#         build_comparison(household_cols, "Household Composition (%)"),
+#         build_comparison(accommodation_cols, "Accommodation Types (%)"),
+#         build_comparison(dwelling_cols, "Dwelling Occupancy (%)"),
+#     ])
+#
+#     return table, {"display": "block"}, visualizations
+
+# @app.callback(
+#     [
+#         Output("census-data-table", "children"),
+#         Output("census-content", "style"),
+#         Output("census-visualizations", "children")
+#     ],
+#     [
+#         Input("btn-census", "n_clicks"),
+#         Input("census-toggle", "value")
+#     ],
+#     prevent_initial_call=True
+# )
+# def load_table_and_default_visuals(n_clicks, toggle_value):
+#     import pandas as pd
+#     from dash import html, dcc
+#     import dash_table
+#     import plotly.graph_objects as go
+#
+#     # Load data
+#     census_df = load_census_data()
+#     if census_df.empty:
+#         return html.Div("No data available", className="text-danger"), {"display": "none"}, None
+#
+#     is_ward = "ward" in toggle_value
+#
+#     # Prepare display dataframe
+#     if is_ward:
+#         display_df = census_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
+#     else:
+#         display_df = census_df.set_index(['LSOA code', 'LSOA name']).reset_index()
+#
+#     display_df = display_df.round(2)
+#     columns = [{"name": col, "id": col} for col in display_df.columns]
+#
+#     # Table
+#     table = dash_table.DataTable(
+#         id='census-table',
+#         data=display_df.to_dict('records'),
+#         columns=columns,
+#         page_size=5,
+#         sort_action='native',
+#         cell_selectable=True,
+#         style_table={
+#             'overflowX': 'auto',
+#             'maxWidth': '100%',
+#             'margin': 'auto',
+#             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+#         },
+#
+#         style_header={
+#             'backgroundColor': '#205081',  # Medium Navy Blue header
+#             'color': '#f0f4f8',  # Very light grey text
+#             'fontWeight': '600',
+#             'fontSize': '15px',
+#             'border': '1px solid #183b6e',
+#             'textAlign': 'center',
+#             'whiteSpace': 'normal',
+#             'letterSpacing': '0.03em',
+#         },
+#
+#         style_cell={
+#             'backgroundColor': '#e7edf7',  # Very light blue background for cells
+#             'color': '#102a54',  # Darker blue text for contrast
+#             'padding': '10px 14px',
+#             'fontSize': '14px',
+#             'border': '1px solid #c1c9de',
+#             'textAlign': 'left',
+#             'whiteSpace': 'normal',
+#             'lineHeight': '1.4',
+#             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+#         },
+#
+#         style_data_conditional=[
+#             {
+#                 'if': {'row_index': 'even'},
+#                 'backgroundColor': '#d7e0f4',  # Slightly darker light blue for even rows
+#             },
+#             {
+#                 'if': {'state': 'active'},  # Hover / active row
+#                 'backgroundColor': '#aac4f7',
+#                 'border': '1px solid #517acc',
+#             },
+#             {
+#                 'if': {'state': 'selected'},  # Selected rows
+#                 'backgroundColor': '#8aa6e8',
+#                 'border': '1px solid #3f5f9e',
+#                 'color': '#f9fafc',  # lighter text on selected
+#                 'fontWeight': '600',
+#             },
+#         ],
+#
+#         style_cell_conditional=[
+#             {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
+#             {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+#         ],
+#
+#         page_action='native',
+#         filter_action='native',
+#     )
+#
+#     # Visuals: default = all areas
+#     total = display_df.sum(numeric_only=True)
+#
+#     def make_grouped_bar(data_selected, data_total, title):
+#         fig = go.Figure()
+#         fig.add_trace(go.Bar(
+#             y=data_selected['label'],
+#             x=data_selected['value'],
+#             name='Selected Area (%)',
+#             orientation='h',
+#             hovertext=data_selected['hover'],
+#             marker_color='rgba(255,127,80,0.75)'
+#         ))
+#         fig.add_trace(go.Bar(
+#             y=data_total['label'],
+#             x=data_total['value'],
+#             name='All Areas (%)',
+#             orientation='h',
+#             hovertext=data_total['hover'],
+#             marker_color='rgba(100,150,250,0.85)'
+#         ))
+#         fig.update_layout(
+#             barmode='group',
+#             title=title,
+#             xaxis_title='Percentage (%)',
+#             yaxis_title='Category',
+#             plot_bgcolor='#1e1e2f',
+#             paper_bgcolor='#1e1e2f',
+#             font=dict(color='#f4f4f4'),
+#             legend=dict(orientation='h', x=0.6, y=1.1),
+#             height=350,
+#             margin=dict(l=120, r=40, t=40, b=40)
+#         )
+#         return fig
+#
+#     # --- Updated build_comparison (hover shows counts) ---
+#     def build_comparison(section_cols, title):
+#         total_vals = total[section_cols]
+#         total_sum = total_vals.sum()
+#         total_data = pd.DataFrame({
+#             "label": section_cols,
+#             "value": (total_vals / total_sum * 100).round(2),
+#             "hover": total_vals.astype(int).astype(str) + " people"
+#         })
+#         sel_data = total_data.copy()
+#         sel_data['value'] = 0
+#         sel_data['hover'] = ["N/A"] * len(sel_data)
+#
+#         return dcc.Graph(figure=make_grouped_bar(sel_data, total_data, title))
+#
+#     # Define columns
+#     demography_cols = ['65 years and older', '15 to 64 years', 'Under 15 years']
+#     household_cols = [
+#         'One-person household: Aged 66 years and over',
+#         'One-person household: Other',
+#         'Single family household',
+#         'Other household types'
+#     ]
+#     household_cols = ['Other household types', 'Single family household',
+#                       'One-person household: Other', 'One-person household: Aged 66 years and over', 'One-person household']
+#     accommodation_cols = [
+#         'A caravan or other mobile or temporary structure', 'Flat, maisonette or apartment',
+#         'Terraced whole house or bungalow', 'Semi-detached whole house or bungalow', 'Detached whole house or bungalow'
+#     ]
+#     dwelling_cols = ['Unoccupied dwellings', 'Total: Occupied dwellings']
+#
+#
+#     visualizations = html.Div([
+#         html.Hr(),
+#         html.H4("Census Overview by Category (All Areas)", className="text-start mb-3"),
+#         build_comparison(demography_cols, "Population Demography (%)"),
+#         build_comparison(household_cols, "Household Composition (%)"),
+#         build_comparison(accommodation_cols, "Accommodation Types (%)"),
+#         build_comparison(dwelling_cols, "Dwelling Occupancy (%)"),
+#     ])
+#
+#     return table, {"display": "block"}, visualizations
+
 @app.callback(
     [
         Output("census-data-table", "children"),
-        Output("census-content", "style"),
+        Output("census-content", "style")
     ],
     [
         Input("btn-census", "n_clicks"),
-        Input("census-toggle", "value"),
+        Input("census-toggle", "value")
     ],
     prevent_initial_call=True
 )
-def display_census_data(n_clicks, toggle_value):
-    # toggle_value: [] means LSOA (off), ["ward"] means Ward (on)
+def load_table(n_clicks, toggle_value):
+    import pandas as pd
+    from dash import html
+    import dash_table
 
-    if not n_clicks or n_clicks % 2 == 0:
-        # Hide content if button hasn't been clicked or on even clicks
-        return None, {"display": "none"}
-
-    census_df = load_census_data()  # Your data loading function
-
+    census_df = load_census_data()
     if census_df.empty:
-        return (
-            html.Div("No deprivation data available", className="text-danger"),
-            {"display": "none"},
-        )
+        return html.Div("No data available", className="text-danger"), {"display": "none"}
 
-    if "ward" in toggle_value:
-        # Aggregate to ward level (simple mean as per your original code)
-        ward_df = census_df.groupby(['Ward code', 'Ward name']).mean(numeric_only=True).reset_index()
-        display_df = ward_df
+    is_ward = "ward" in toggle_value
+    if is_ward:
+        display_df = census_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
     else:
-        # Show LSOA level data
-        cols_to_move_up = ['LSOA code', 'LSOA name', 'Ward code', 'Ward name']
-        census_df = census_df.set_index(cols_to_move_up).reset_index()
-        display_df = census_df
+        display_df = census_df.set_index(['LSOA code', 'LSOA name']).reset_index()
 
     display_df = display_df.round(2)
-
-    # Prepare columns for DataTable
     columns = [{"name": col, "id": col} for col in display_df.columns]
 
-    # Dash DataTable with native sorting enabled and pagination (page size = 6)
     table = dash_table.DataTable(
+        id='census-table',
         data=display_df.to_dict('records'),
         columns=columns,
         page_size=5,
         sort_action='native',
+        cell_selectable=True,
         style_table={
             'overflowX': 'auto',
             'maxWidth': '100%',
@@ -1753,6 +2120,136 @@ def display_census_data(n_clicks, toggle_value):
     )
 
     return table, {"display": "block"}
+
+@app.callback(
+    Output("census-visualizations", "children"),
+    [
+        Input("btn-census", "n_clicks"),
+        Input("census-table", "active_cell")
+    ],
+    State("census-toggle", "value"),
+    prevent_initial_call=True
+)
+def update_visuals(n_clicks, active_cell, toggle_value):
+    import pandas as pd
+    from dash import dcc, html
+    import plotly.graph_objects as go
+
+    census_df = load_census_data()
+    if census_df.empty:
+        return None
+
+    is_ward = "ward" in toggle_value
+
+    if is_ward:
+        grouped_df = census_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
+    else:
+        grouped_df = census_df.set_index(['LSOA code', 'LSOA name']).reset_index()
+
+    total = grouped_df.sum(numeric_only=True)
+
+    # --- Visualization function ---
+    def make_grouped_bar(data_selected, data_total, title):
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            y=data_selected['label'],
+            x=data_selected['value'],
+            name='Selected Area (%)',
+            orientation='h',
+            hovertext=data_selected['hover'],
+            marker_color='rgba(255,127,80,0.75)'
+        ))
+        fig.add_trace(go.Bar(
+            y=data_total['label'],
+            x=data_total['value'],
+            name='All Areas (%)',
+            orientation='h',
+            hovertext=data_total['hover'],
+            marker_color='rgba(100,150,250,0.85)'
+        ))
+        fig.update_layout(
+            title=dict(text=title),
+            barmode='group',
+            xaxis=dict(range=[0, 100]),
+            xaxis_title='Percentage (%)',
+            yaxis_title='Category',
+            plot_bgcolor='#1e1e2f',
+            paper_bgcolor='#1e1e2f',
+            font=dict(color='#f4f4f4'),
+            legend=dict(orientation='h', x=0.6, y=1.1),
+            height=350,
+            margin=dict(l=120, r=40, t=40, b=40)
+        )
+        return fig
+
+    def build_comparison(section_cols, title, sel_vals=None):
+        total_vals = total[section_cols]
+        total_sum = total_vals.sum()
+        total_data = pd.DataFrame({
+            "label": section_cols,
+            "value": (total_vals / total_sum * 100).round(2),
+            "hover": total_vals.astype(int).astype(str) + " people"
+        })
+
+        if sel_vals is not None:
+            sel_sum = sel_vals.sum()
+            sel_data = pd.DataFrame({
+                "label": section_cols,
+                "value": (sel_vals / sel_sum * 100).round(2),
+                "hover": sel_vals.astype(int).astype(str) + " people"
+            })
+        else:
+            sel_data = total_data.copy()
+            sel_data['value'] = 0
+            sel_data['hover'] = ["N/A"] * len(sel_data)
+
+        return dcc.Graph(figure=make_grouped_bar(sel_data, total_data, title))
+
+    # --- Define columns ---
+    demography_cols = ['65 years and older', '15 to 64 years', 'Under 15 years']
+    household_cols = ['Other household types', 'Single family household',
+                      'One-person household: Other', 'One-person household: Aged 66 years and over']
+    accommodation_cols = [
+        'A caravan or other mobile or temporary structure', 'Flat, maisonette or apartment',
+        'Terraced whole house or bungalow', 'Semi-detached whole house or bungalow',
+        'Detached whole house or bungalow']
+    dwelling_cols = ['Unoccupied dwellings', 'Total: Occupied dwellings']
+
+    sel_vals = None
+    if active_cell:
+        row_idx = active_cell['row']
+        col_id = active_cell['column_id']
+
+        # fallback: determine key column
+        key_col = 'Ward code' if is_ward else 'LSOA code'
+        key_val = grouped_df.iloc[row_idx][key_col]
+
+        if is_ward:
+            sel_row = grouped_df[grouped_df['Ward code'] == key_val]
+        else:
+            sel_row = grouped_df[grouped_df['LSOA code'] == key_val]
+
+        if not sel_row.empty:
+            sel_vals = sel_row.iloc[0][total.index]
+
+    selection_note = html.P(
+        "Tip: Click on a cell in the 'Ward code' column to compare that area with the totals.",
+        className="text-info fst-italic mb-3"
+    ) if is_ward else html.P(
+        "LSOA-level selection is currently not supported for detailed comparison.",
+        className="text-warning fst-italic mb-3"
+    )
+
+    return html.Div([
+        html.Hr(),
+        html.H4("Census Overview by Category (All Areas vs Selected)", className="text-start mb-3"),
+        selection_note,
+        build_comparison(demography_cols, "Population Demography (%)", sel_vals[demography_cols] if sel_vals is not None else None),
+        build_comparison(household_cols, "Household Composition (%)", sel_vals[household_cols] if sel_vals is not None else None),
+        build_comparison(accommodation_cols, "Accommodation Types (%)", sel_vals[accommodation_cols] if sel_vals is not None else None),
+        build_comparison(dwelling_cols, "Dwelling Occupancy (%)", sel_vals[dwelling_cols] if sel_vals is not None else None),
+    ])
+
 
 # Add callback to control submenu visibility
 @app.callback(
