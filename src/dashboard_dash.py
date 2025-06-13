@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import geopandas as gpd
 import json
 import numpy as np
-
+from dash import dash_table
 
 app = dash.Dash(
     __name__,
@@ -88,7 +88,7 @@ gdf_ward_boundaries.rename(columns={'WD24CD': 'Ward code', 'WD24NM': 'Ward name'
 wards = gdf_ward_boundaries[['Ward code', 'Ward name']].drop_duplicates()
 ward_options = [
         {'label': f"{row['Ward code']}, {row['Ward name']}", 'value': row['Ward code']}
-        for _, row in wards.sort_values('Ward code').iterrows()
+        for _, row in wards.sort_values('Ward name').iterrows()
     ]
 
 
@@ -106,7 +106,7 @@ sidebar = html.Div(
                 dbc.NavLink("Census Data", href="/data/census", active="exact", className="nav-link ps-5"),
                 dbc.NavLink("Summarized Data", href="/data/summary", active="exact", className="nav-link ps-5"),
             ]),
-            dbc.NavLink("Forecasting", href="/forecast", active="exact", className="nav-link ps-3"),
+            dbc.NavLink("Forecasting & Planning", href="/forecast", active="exact", className="nav-link ps-3"),
             dbc.NavLink("Map View", href="/map", active="exact", className="nav-link ps-3"),
             dbc.NavLink("About", href="/about", active="exact", className="nav-link ps-3"),
         ], vertical=True, pills=True),
@@ -585,81 +585,79 @@ def census_data():
     ], style={"marginLeft": "250px", "width": "100%"})
 
 
+### TODO: WORK ON FORECASTING LAYOUT AND FINISH IT TODAY !!!
+
+# TODO: downloads and dataframes etc.
+boroughs = {
+     'E09000001': 'City of London',
+     'E09000002': 'Barking and Dagenham',
+     'E09000003': 'Barnet',
+     'E09000004': 'Bexley',
+     'E09000005': 'Brent',
+     'E09000006': 'Bromley',
+     'E09000007': 'Camden',
+     'E09000008': 'Croydon',
+     'E09000009': 'Ealing',
+     'E09000010': 'Enfield',
+     'E09000011': 'Greenwich',
+     'E09000012': 'Hackney',
+     'E09000013': 'Hammersmith and Fulham',
+     'E09000014': 'Haringey',
+     'E09000015': 'Harrow',
+     'E09000016': 'Havering',
+     'E09000017': 'Hillingdon',
+     'E09000018': 'Hounslow',
+     'E09000019': 'Islington',
+     'E09000020': 'Kensington and Chelsea',
+     'E09000021': 'Kingston upon Thames',
+     'E09000022': 'Lambeth',
+     'E09000023': 'Lewisham',
+     'E09000024': 'Merton',
+     'E09000025': 'Newham',
+     'E09000026': 'Redbridge',
+     'E09000027': 'Richmond upon Thames',
+     'E09000028': 'Southwark',
+     'E09000029': 'Sutton',
+     'E09000030': 'Tower Hamlets',
+     'E09000031': 'Waltham Forest',
+     'E09000032': 'Wandsworth',
+     'E09000033': 'Westminster'}
+
+borough_options = [
+        {'label': f"{key}, {value}", 'value': key}
+        for key, value in boroughs.items()
+    ]
 def forecasting():
-    # Load ward information from the lookup file
-    try:
-        ward_df = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
-        # Get unique ward codes and names
-        ward_df = ward_df[['WD24CD', 'WD24NM']].drop_duplicates()
-        # Add placeholder columns for predictions and resource allocation
-        ward_df['Predicted Crime Count'] = ''
-        ward_df['Resource Allocation'] = ''
-        # Rename columns for display
-        ward_df.columns = ['Ward Code', 'Ward Name', 'Predicted Crime Count', 'Resource Allocation']
-    except Exception as e:
-        print(f"Error loading ward data: {str(e)}")
-        ward_df = pd.DataFrame(columns=['Ward Code', 'Ward Name', 'Predicted Crime Count', 'Resource Allocation'])
 
     return dbc.Card([
         dbc.CardBody([
-            html.H1("Forecasting", className="card-title text-center mb-4"),
+            html.H1("Forecasting & Planning", className="card-title"),
             html.P(
-                "This section will display predicted crime counts and recommended resource allocation for each ward in London.",
-                className="card-text text-center mb-4"),
+                "Use this tool to view forecasted residential burglary and recommended police resource allocations across London boroughs.",
+                className="card-text text-center mb-4"
+            ),
 
-            # Description of the table
             html.Div([
-                html.H4("Forecast Data", className="mt-3 text-center"),
-                html.P(
-                    "The table below shows ward-level predictions and resource allocation recommendations. These will be populated once the forecasting model is implemented.",
-                    className="card-text text-center"),
+                html.Label("Select Borough(s):", className="fw-bold"),
+                dcc.Dropdown(
+                    id="borough-dropdown",
+                    options=borough_options,
+                    multi=True,
+                    placeholder="Select one or more boroughs...",
+                    style={"width": "100%"}
+                ),
+            ], className="mb-4"),
 
-                # Search and sort controls
-                html.Div([
-                    # Search field
-                    dbc.Input(
-                        id="ward-search",
-                        type="text",
-                        placeholder="Search by ward name...",
-                        className="mb-3",
-                        style={"maxWidth": "300px", "margin": "0 auto"}
-                    ),
+            dcc.Tabs(id="forecast-tabs", value="forecasts", children=[
+                dcc.Tab(label="3-Month Forecasts", value="forecasts"),
+                dcc.Tab(label="Next-Month Resource Allocation", value="allocation"),
+            ]),
 
-                    # Sort radio buttons
-                    html.Div([
-                        dbc.RadioItems(
-                            id="sort-options",
-                            options=[
-                                {"label": "No Sort", "value": "none"},
-                                {"label": "Sort by Predicted Crime Count", "value": "crime"},
-                                {"label": "Sort by Resource Allocation", "value": "resource"}
-                            ],
-                            value="none",
-                            inline=True,
-                            className="mb-3"
-                        )
-                    ], className="text-center")
-                ], className="text-center"),
+            html.Div(id="forecasting-content", className="mt-4")
 
-                # Scrollable container for the table
-                html.Div([
-                    dbc.Table.from_dataframe(
-                        ward_df,
-                        striped=True,
-                        bordered=True,
-                        hover=True,
-                        responsive=True,
-                        className="table-dark mt-4",
-                        id="forecast-table"
-                    )
-                ], style={
-                    'height': '600px',  # Fixed height to show approximately 15 rows
-                    'overflowY': 'auto',  # Enable vertical scrolling
-                    'marginTop': '20px'
-                })
-            ], className="p-3")
-        ])
+        ], className="p-4")
     ], style={"marginLeft": "250px", "width": "100%"})
+
 
 
 deprivation_df = load_deprivation_data()
@@ -1845,6 +1843,7 @@ def update_census_visuals(n_clicks, selected_rows, toggle_value):
 # Add callback to control submenu visibility
 @app.callback(
     Output("data-explorer-submenu", "style"),
+Input("forecast-tabs", "value"),
     Input("url", "pathname")
 )
 def toggle_data_explorer_submenu(pathname):
@@ -1852,59 +1851,203 @@ def toggle_data_explorer_submenu(pathname):
         return {"display": "block"}
     return {"display": "none"}
 
+# FORECASTING & PLANNING CALLBACKS
+# TODO: GLOBAL STORAGES
+raw_forecasts_df = pd.read_csv('data/processed/sarima_final_forecast_per_ward.csv')
+lookup = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
+lookup_ward_borough = lookup[['Ward code', 'Ward name', 'Borough code', 'Borough name']].drop_duplicates()
+def prepare_forecast_table(selected_boroughs=None):
+    """
+    Transforms raw forecast data into a pivoted table format with integer values and ward/borough names.
+    Optionally filters by selected boroughs.
+    """
+    # Pivot the table: rows = ward code, columns = Month, values = mean forecast
+    pivot_df = raw_forecasts_df.pivot(index='Ward code', columns='Month', values='mean')
 
-# Add callback for ward search and sorting
-@app.callback(
-    Output("forecast-table", "children"),
-    [Input("ward-search", "value"),
-     Input("sort-options", "value")]
+    pivot_df.columns = [f"Predicted Crime Count: {col[:7]}" for col in pivot_df.columns]
+
+    # Replace NaNs (if any) with 0
+    pivot_df = pivot_df.fillna(0)
+
+    # Round to nearest integer and ensure non-negative values
+    pivot_df = pivot_df.round().astype(int).clip(lower=0)
+
+    # Reset index to bring 'Ward code' back as a column
+    pivot_df = pivot_df.reset_index()
+
+    # Merge with ward and borough names
+    merged_df = pivot_df.merge(lookup_ward_borough, on='Ward code', how='left')
+
+    # Optional: Reorder columns
+    final_df = merged_df.set_index(['Ward code', 'Ward name', 'Borough code', 'Borough name']).reset_index()
+
+    # Filter if boroughs are selected
+    if selected_boroughs:
+        final_df = final_df[final_df['Borough code'].isin(selected_boroughs)]
+        final_df = final_df.sort_values(by=['Borough name', 'Ward name'])
+        return final_df
+
+    return None
+
+def prepare_allocation(selected_boroughs=None):
+    """
+    Loads and optionally filters the ward-hour allocation data by selected boroughs.
+    """
+    allocation_df = pd.read_csv('data/processed/ward_hour_allocation_LP_method.csv')
+
+    # Rename columns to be more descriptive
+    allocation_df.rename(columns={
+        'Predicted_Crime_Count': 'Predicted Crime Count: 2025-04',
+        'Allocated_Officers_Rounded': 'Allocated Hours'
+    }, inplace=True)
+
+    # Merge with ward/borough lookup to get readable names
+    merged_df = allocation_df.merge(lookup_ward_borough, on=['Ward code', 'Ward name'], how='left')
+
+    # allow only integer values
+    merged_df['Predicted Crime Count: 2025-04'] = merged_df['Predicted Crime Count: 2025-04'].round().astype(int).clip(lower=0)
+
+    # Reorder columns: Borough name, Ward name, then allocation info
+    final_df = merged_df[[
+        'Ward code', 'Ward name', 'Borough code', 'Borough name',
+        'Predicted Crime Count: 2025-04', 'Allocated Hours'
+    ]]
+
+    # Filter by selected boroughs if provided
+    if selected_boroughs:
+        final_df = final_df[final_df['Borough code'].isin(selected_boroughs)]
+        # Sort by Borough name then Ward name
+        final_df = final_df.sort_values(by=['Borough name', 'Ward name'])
+        return final_df
+
+    return None
+
+from dash import html, dcc
+
+@callback(
+    Output("forecasting-content", "children"),
+    Input("forecast-tabs", "value"),
+    Input("borough-dropdown", "value"),
+    prevent_initial_call=True
 )
-def filter_and_sort_wards(search_value, sort_option):
-    try:
-        ward_df = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
-        ward_df = ward_df[['WD24CD', 'WD24NM']].drop_duplicates()
-        ward_df['Predicted Crime Count'] = ''
-        ward_df['Resource Allocation'] = ''
-        ward_df.columns = ['Ward Code', 'Ward Name', 'Predicted Crime Count', 'Resource Allocation']
+def update_forecasting_tables_content(tab_value, selected_boroughs):
+    if tab_value == "forecasts":
+        filtered_df = prepare_forecast_table(selected_boroughs)
 
-        # Filter based on search
-        if search_value:
-            ward_df = ward_df[ward_df['Ward Name'].str.contains(search_value, case=False, na=False)]
+        return html.Div([
+            # Download button + download component
+            html.Div([
+                html.Button("Download Table CSV", id="btn-download-csv", n_clicks=0, className="btn btn-primary mb-3"),
+                dcc.Download(id="download-dataframe-csv")
+            ]),
 
-        # Sort based on radio selection
-        if sort_option == "crime":
-            ward_df = ward_df.sort_values('Predicted Crime Count', ascending=False)
-        elif sort_option == "resource":
-            ward_df = ward_df.sort_values('Resource Allocation', ascending=False)
-        # If sort_option is "none", no sorting is applied
+            dash_table.DataTable(
+                data=filtered_df.to_dict('records'),
+                columns=[{"name": col, "id": col} for col in filtered_df.columns],
+                page_size=20,
+                sort_action='native',
+                style_table={'overflowX': 'auto', 'maxWidth': '100%', 'margin': 'auto',
+                             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"},
+                style_header={
+                    'backgroundColor': '#205081', 'color': '#f0f4f8', 'fontWeight': '600', 'fontSize': '15px',
+                    'border': '1px solid #183b6e', 'textAlign': 'center', 'whiteSpace': 'normal', 'letterSpacing': '0.03em'
+                },
+                style_cell={
+                    'backgroundColor': '#e7edf7', 'color': '#102a54', 'padding': '10px 14px', 'fontSize': '14px',
+                    'border': '1px solid #c1c9de', 'textAlign': 'left', 'whiteSpace': 'normal',
+                    'lineHeight': '1.4', 'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+                },
+                style_data_conditional=[
+                    {'if': {'row_index': 'even'}, 'backgroundColor': '#d7e0f4'},
+                    {'if': {'state': 'active'}, 'backgroundColor': '#aac4f7', 'border': '1px solid #517acc'},
+                    {'if': {'state': 'selected'}, 'backgroundColor': '#8aa6e8',
+                     'border': '1px solid #3f5f9e', 'color': '#f9fafc', 'fontWeight': '600'},
+                ],
+                style_cell_conditional=[
+                    {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+                    {'if': {'column_id': 'Borough code'}, 'textAlign': 'center', 'fontWeight': '600'}
+                ],
+                page_action='native',
+                filter_action='native',
+                row_selectable='single'
+            )
+        ])
 
-        return dbc.Table.from_dataframe(
-            ward_df,
-            striped=True,
-            bordered=True,
-            hover=True,
-            responsive=True,
-            className="table-dark mt-4"
-        )
-    except Exception as e:
-        print(f"Error in ward search/sort: {str(e)}")
-        return None
+    elif tab_value == "allocation":
+        allocation_df = prepare_allocation(selected_boroughs)
+
+        return html.Div([
+            # Download button + download component
+            html.Div([
+                html.Button("Download Table CSV", id="btn-download-csv", n_clicks=0, className="btn btn-primary mb-3"),
+                dcc.Download(id="download-dataframe-csv")
+            ]),
+
+            dash_table.DataTable(
+                data=allocation_df.to_dict('records'),
+                columns=[{"name": col, "id": col} for col in allocation_df.columns],
+                page_size=20,
+                sort_action='native',
+                style_table={'overflowX': 'auto', 'maxWidth': '100%', 'margin': 'auto',
+                             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"},
+                style_header={
+                    'backgroundColor': '#205081', 'color': '#f0f4f8', 'fontWeight': '600', 'fontSize': '15px',
+                    'border': '1px solid #183b6e', 'textAlign': 'center', 'whiteSpace': 'normal', 'letterSpacing': '0.03em'
+                },
+                style_cell={
+                    'backgroundColor': '#e7edf7', 'color': '#102a54', 'padding': '10px 14px', 'fontSize': '14px',
+                    'border': '1px solid #c1c9de', 'textAlign': 'left', 'whiteSpace': 'normal',
+                    'lineHeight': '1.4', 'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+                },
+                style_data_conditional=[
+                    {'if': {'row_index': 'even'}, 'backgroundColor': '#d7e0f4'},
+                    {'if': {'state': 'active'}, 'backgroundColor': '#aac4f7', 'border': '1px solid #517acc'},
+                    {'if': {'state': 'selected'}, 'backgroundColor': '#8aa6e8',
+                     'border': '1px solid #3f5f9e', 'color': '#f9fafc', 'fontWeight': '600'},
+                ],
+                style_cell_conditional=[
+                    {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+                    {'if': {'column_id': 'Borough code'}, 'textAlign': 'center', 'fontWeight': '600'}
+                ],
+                page_action='native',
+                filter_action='native'
+            )
+        ])
+
+# TODO: 1 CALLBACK FOR THE FORECASTING TAB CI PLOT
+
+# TODO: DOWNLOAD OPTION
+from dash import dcc, html, Input, Output, callback_context
+
+from dash import callback_context as ctx
 
 
-# Add new callbacks for sorting
-@app.callback(
-    Output("borough-sort-options", "value"),
-    Input("borough-sort-options", "value")
+@callback(
+    Output("download-dataframe-csv", "data"),
+    Input("btn-download-csv", "n_clicks"),
+    Input("forecast-tabs", "value"),
+    Input("borough-dropdown", "value"),
+    prevent_initial_call=True
 )
-def update_borough_sort(sort_option):
-    return sort_option
+def download_table(n_clicks, tab_value, selected_boroughs):
+    triggered_id = ctx.triggered_id
 
-@app.callback(
-    Output("ward-sort-options", "value"),
-    Input("ward-sort-options", "value")
-)
-def update_ward_sort(sort_option):
-    return sort_option
+    # Only proceed if the download button was clicked
+    if triggered_id != "btn-download-csv" or not n_clicks:
+        return dash.no_update
+
+    # Prepare dataframe based on the tab and filter
+    if tab_value == "forecasts":
+        df = prepare_forecast_table(selected_boroughs)
+        filename = "forecast_table.csv"
+    elif tab_value == "allocation":
+        df = prepare_allocation(selected_boroughs)
+        filename = "allocation_table.csv"
+    else:
+        return dash.no_update
+
+    # Return CSV file download
+    return dcc.send_data_frame(df.to_csv, filename, index=False)
 
 
 if __name__ == '__main__':
