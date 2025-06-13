@@ -1526,9 +1526,7 @@ def display_deprivation_data(n_clicks, toggle_value):
 
     if "ward" in toggle_value:
         # Aggregate to ward level (simple mean)
-        ward_df = deprivation_df.groupby(['Ward code', 'Ward name']).mean(numeric_only=True).reset_index()
-        display_df = deprivation_df.set_index(['Ward code', 'Ward name']).reset_index()
-        display_df = ward_df
+        display_df = deprivation_df.groupby(['Ward code', 'Ward name']).mean(numeric_only=True).reset_index()
     else:
         # Show LSOA level data
         cols_to_move_up = ['LSOA code', 'LSOA name']
@@ -1663,8 +1661,7 @@ def display_census_data(n_clicks, toggle_value):
 
     is_ward = "ward" in toggle_value
     if is_ward:
-        display_df = census_df.groupby(['Ward code', 'Ward name', 'Borough code', 'Borough name']).sum(numeric_only=True).reset_index()
-        display_df = census_df.set_index(['Ward code', 'Ward name']).reset_index()
+        display_df = census_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
         display_df["id"] = display_df["Ward code"]  # Set row ID internally
     else:
         display_df = census_df.set_index(['LSOA code', 'LSOA name']).reset_index()
