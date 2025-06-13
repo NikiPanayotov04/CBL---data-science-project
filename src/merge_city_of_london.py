@@ -49,7 +49,8 @@ is_city_2 = df_lsoa_to_ward['LAD24NM'] == 'City of London'
 df_lsoa_to_ward.loc[is_city_2, 'WD24CD'] = 'E09000001'
 df_lsoa_to_ward.loc[is_city_2, 'WD24NM'] = 'City of London'
 
-df_lsoa_to_ward_merged = df_lsoa_to_ward[['LSOA21CD', 'LSOA21NM', 'WD24CD', 'WD24NM', 'LAD24CD', 'LAD24NM']]
+df_lsoa_to_ward_merged = df_lsoa_to_ward[['LSOA21CD', 'LSOA21NM', 'WD24CD', 'WD24NM', 'LAD24CD', 'LAD24NM']].copy()
+df_lsoa_to_ward_merged.rename(columns={'LSOA21CD': 'LSOA code', 'LSOA21NM': 'LSOA name', 'WD24CD': 'Ward code', 'WD24NM': 'Ward name', 'LAD24CD': 'Borough code', 'LAD24NM': 'Borough name'}, inplace=True)
 df_lsoa_to_ward_merged.to_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv', index=False)
 
 print('Updated to merged ward boundaries and lookup version.')
