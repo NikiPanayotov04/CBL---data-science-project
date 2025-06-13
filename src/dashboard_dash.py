@@ -1478,6 +1478,7 @@ def display_crime_data(month, ward):
                     style_cell_conditional=[
                         {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
                         {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+                        {'if': {'column_id': 'Borough code'}, 'textAlign': 'center', 'fontWeight': '600'}
                     ],
                 )
                 return table, "", visualizations
@@ -1529,7 +1530,7 @@ def display_deprivation_data(n_clicks, toggle_value):
         display_df = ward_df
     else:
         # Show LSOA level data
-        cols_to_move_up = ['LSOA code', 'Ward code', 'Ward name']
+        cols_to_move_up = ['LSOA code', 'LSOA name']
         deprivation_df = deprivation_df.set_index(cols_to_move_up).reset_index()
         display_df = deprivation_df
 
@@ -1580,6 +1581,7 @@ def display_deprivation_data(n_clicks, toggle_value):
         style_cell_conditional=[
             {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
             {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+            {'if': {'column_id': 'Borough code'}, 'textAlign': 'center', 'fontWeight': '600'}
         ],
         page_action='native',
         filter_action='native',
@@ -1660,7 +1662,7 @@ def display_census_data(n_clicks, toggle_value):
 
     is_ward = "ward" in toggle_value
     if is_ward:
-        display_df = census_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
+        display_df = census_df.groupby(['Ward code', 'Ward name', 'Borough code', 'Borough name']).sum(numeric_only=True).reset_index()
         display_df["id"] = display_df["Ward code"]  # Set row ID internally
     else:
         display_df = census_df.set_index(['LSOA code', 'LSOA name']).reset_index()
@@ -1718,6 +1720,7 @@ def display_census_data(n_clicks, toggle_value):
         style_cell_conditional=[
             {'if': {'column_id': 'LSOA code'}, 'textAlign': 'center', 'fontWeight': '600'},
             {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+            {'if': {'column_id': 'Borough code'}, 'textAlign': 'center', 'fontWeight': '600'}
         ]
     )
 
@@ -1733,7 +1736,7 @@ def display_census_data(n_clicks, toggle_value):
     State("census-toggle", "value"),
     prevent_initial_call=True
 )
-def update_visuals(n_clicks, selected_rows, toggle_value):
+def update_census_visuals(n_clicks, selected_rows, toggle_value):
     census_df = load_census_data()
     if census_df.empty:
         return None
