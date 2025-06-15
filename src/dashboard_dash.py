@@ -1,5 +1,4 @@
 import dash
-from dash import html
 import dash_bootstrap_components as dbc
 from dash import dcc, html, Input, Output, State
 import pandas as pd
@@ -11,11 +10,14 @@ import geopandas as gpd
 import json
 import numpy as np
 from dash import dash_table
-from dash import dcc, html, Input, Output, callback_context
 from dash import callback_context as ctx
 import plotly.io as pio
-import os
-import json
+from heatmap_generator import generate_imd_heatmap, generate_forecasted_crime_counts_heatmap, generate_transport_stops_scatter, generate_base_ward_map
+from dash.exceptions import PreventUpdate
+import base64
+import uuid
+import folium
+from branca.element import Figure
 
 app = dash.Dash(
     __name__,
@@ -740,9 +742,9 @@ def forecasting():
 
 
 # DATASETS
-
 deprivation_df = load_deprivation_data()
 burglaries_df = pd.read_parquet("data/processed/burglaries.parquet")
+transport_stops_df = pd.read_parquet("data/processed/stops_lsoa.parquet")
 stop_counts_df = pd.read_csv("data/processed/stop_counts_per_ward.csv")
 gdf_wards = gpd.read_file("data/boundaries/ward boundaries 2024/london_wards_merged.shp").to_crs("EPSG:4326")
 forecasts_df = pd.read_csv("data/processed/ward_hour_allocation_LP_method.csv")
@@ -776,6 +778,39 @@ def map_view():
                         children=dcc.Graph(id="map2", style={"height": "600px", "width": "100%"})
                     ),
                     md=6
+                )
+            ], className="mb-4"),
+
+            html.Hr(),
+            html.H4("Density Heatmaps", className="mb-3"),
+
+            dbc.Row([
+                dbc.Col(
+                    dcc.Dropdown(
+                        id="heatmap-selector",
+                        options=[
+                            {"label": "Ward Boundaries", "value": "base"},
+                            {"label": "IMD Score", "value": "imd"},
+                            {"label": "Forecasted Crime Count Density", "value": "crime_density"},
+                        ],
+                        value="base",
+                        multi=False, 
+                        clearable=False,
+                        style={"width": "300px"}
+                    )
+                )
+            ], className="mb-3"),
+
+            dbc.Row([
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-map3",
+                        type="circle",
+                        children=html.Iframe(
+                        id="heatmap-container",
+                        style={"width": "100%", "height": "600px", "border": "none"}
+                        )
+                    ),
                 )
             ])
         ])
@@ -885,7 +920,7 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
                                 html.I(className=f"bi {trend_arrow} me-1 {trend_color}", id="trend-icon"),
                                 f"{diff_pct}%"
                             ], className=f"fs-6 {trend_color}"),
-                            dbc.Tooltip("Change vs previous month", target="trend-icon")
+                            dbc.Tooltip("Change in residential burglary count vs previous month", target="trend-icon")
                         ])
                     ], width=6),
                     dbc.Col([
@@ -923,6 +958,26 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
             ])
         ])
 
+@app.callback(
+    Output("heatmap-container", "srcDoc"),
+    Input("heatmap-selector", "value")
+)
+def update_heatmap(selected_layers):
+    if not selected_layers:
+        raise PreventUpdate
+
+    # Determine which maps to include
+    base = "base" in selected_layers
+    imd = "imd" in selected_layers
+    crime = "crime_density" in selected_layers
+
+    # Generate the base map with wards
+    if base:
+        return generate_base_ward_map(gdf_wards, transport_stops_df)
+    elif imd:
+        return generate_imd_heatmap(gdf_wards, deprivation_df, transport_stops_df)
+    elif crime:
+        return generate_forecasted_crime_counts_heatmap(gdf_wards, forecasts_df, transport_stops_df)
 
 def about():
     return dbc.Card([
@@ -1934,7 +1989,7 @@ def toggle_data_explorer_submenu(pathname):
 # TODO: GLOBAL STORAGES
 raw_forecasts_df = pd.read_csv('data/processed/sarima_final_forecast_per_ward.csv')
 lookup = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
-lookup_ward_borough = lookup[['Ward code', 'Ward name', 'Borough code', 'Borough name']].drop_duplicates()
+lookup_ward_borough = lookup[['WD24CD', 'WD24NM']].drop_duplicates()
 def prepare_forecast_table(selected_boroughs=None):
     """
     Transforms raw forecast data into a pivoted table format with integer values and ward/borough names.
