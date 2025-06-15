@@ -49,8 +49,7 @@ gdf_ward_boundaries = gdf_ward_boundaries.to_crs(epsg=27700)  # British National
 df_burglaries = load_and_filter_burglary_spatial("data/crime 2022-2025", gdf_ward_boundaries)
 
 # === Include Borough code/name ==
-lookup = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')[['LSOA21CD', 'LAD24CD', 'LAD24NM']]
-lookup.rename(columns={'LSOA21CD': 'LSOA code', 'LAD24CD': 'Borough code', 'LAD24NM': 'Borough name'}, inplace=True)
+lookup = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')[['LSOA code', 'Borough code', 'Borough name']]
 df_burglaries_full = df_burglaries.merge(lookup, on=['LSOA code'], how='left')
 
 # === Save to Parquet ===

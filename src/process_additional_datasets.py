@@ -168,7 +168,6 @@ for col in df_census_london.columns:
 
 # == Match LSOA to ward ==
 df_lsoa_to_ward = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
-df_lsoa_to_ward.rename(columns={'LSOA21CD': 'LSOA code', 'LSOA21NM': 'LSOA name', 'WD24CD': 'Ward code', 'WD24NM': 'Ward name', 'LAD24CD': 'Borough code', 'LAD24NM': 'Borough name'}, inplace=True)
 # include ward and borough codes/names
 df_census_london = df_census_london.merge(df_lsoa_to_ward, on=['LSOA code', 'LSOA name'])
 df_dep_11_to_21_london = df_dep_11_to_21_london.merge(df_lsoa_to_ward, on=['LSOA code'])

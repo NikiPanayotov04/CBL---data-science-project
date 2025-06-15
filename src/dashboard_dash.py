@@ -1,5 +1,4 @@
 import dash
-from dash import html
 import dash_bootstrap_components as dbc
 from dash import dcc, html, Input, Output, State
 import pandas as pd
@@ -10,7 +9,15 @@ import plotly.graph_objects as go
 import geopandas as gpd
 import json
 import numpy as np
-
+from dash import dash_table
+from dash import callback_context as ctx
+import plotly.io as pio
+from heatmap_generator import generate_imd_heatmap, generate_forecasted_crime_counts_heatmap, generate_transport_stops_scatter, generate_base_ward_map
+from dash.exceptions import PreventUpdate
+import base64
+import uuid
+import folium
+from branca.element import Figure
 
 app = dash.Dash(
     __name__,
@@ -88,7 +95,7 @@ gdf_ward_boundaries.rename(columns={'WD24CD': 'Ward code', 'WD24NM': 'Ward name'
 wards = gdf_ward_boundaries[['Ward code', 'Ward name']].drop_duplicates()
 ward_options = [
         {'label': f"{row['Ward code']}, {row['Ward name']}", 'value': row['Ward code']}
-        for _, row in wards.sort_values('Ward code').iterrows()
+        for _, row in wards.sort_values('Ward name').iterrows()
     ]
 
 
@@ -106,7 +113,7 @@ sidebar = html.Div(
                 dbc.NavLink("Census Data", href="/data/census", active="exact", className="nav-link ps-5"),
                 dbc.NavLink("Summarized Data", href="/data/summary", active="exact", className="nav-link ps-5"),
             ]),
-            dbc.NavLink("Forecasting", href="/forecast", active="exact", className="nav-link ps-3"),
+            dbc.NavLink("Forecasting & Planning", href="/forecast", active="exact", className="nav-link ps-3"),
             dbc.NavLink("Map View", href="/map", active="exact", className="nav-link ps-3"),
             dbc.NavLink("About", href="/about", active="exact", className="nav-link ps-3"),
         ], vertical=True, pills=True),
@@ -349,7 +356,6 @@ def crime_data():
                 html.Hr(),
 
                 # Filters
-                # Filters section
                 html.Div([
                     html.H5("Filter Crime Data", className="text-center mt-4 mb-3"),
 
@@ -585,85 +591,160 @@ def census_data():
     ], style={"marginLeft": "250px", "width": "100%"})
 
 
-def forecasting():
-    # Load ward information from the lookup file
-    try:
-        ward_df = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
-        # Get unique ward codes and names
-        ward_df = ward_df[['WD24CD', 'WD24NM']].drop_duplicates()
-        # Add placeholder columns for predictions and resource allocation
-        ward_df['Predicted Crime Count'] = ''
-        ward_df['Resource Allocation'] = ''
-        # Rename columns for display
-        ward_df.columns = ['Ward Code', 'Ward Name', 'Predicted Crime Count', 'Resource Allocation']
-    except Exception as e:
-        print(f"Error loading ward data: {str(e)}")
-        ward_df = pd.DataFrame(columns=['Ward Code', 'Ward Name', 'Predicted Crime Count', 'Resource Allocation'])
+### TODO: WORK ON FORECASTING LAYOUT AND FINISH IT TODAY !!!
 
+# TODO: downloads and dataframes etc.
+boroughs = {
+     'E09000001': 'City of London',
+     'E09000002': 'Barking and Dagenham',
+     'E09000003': 'Barnet',
+     'E09000004': 'Bexley',
+     'E09000005': 'Brent',
+     'E09000006': 'Bromley',
+     'E09000007': 'Camden',
+     'E09000008': 'Croydon',
+     'E09000009': 'Ealing',
+     'E09000010': 'Enfield',
+     'E09000011': 'Greenwich',
+     'E09000012': 'Hackney',
+     'E09000013': 'Hammersmith and Fulham',
+     'E09000014': 'Haringey',
+     'E09000015': 'Harrow',
+     'E09000016': 'Havering',
+     'E09000017': 'Hillingdon',
+     'E09000018': 'Hounslow',
+     'E09000019': 'Islington',
+     'E09000020': 'Kensington and Chelsea',
+     'E09000021': 'Kingston upon Thames',
+     'E09000022': 'Lambeth',
+     'E09000023': 'Lewisham',
+     'E09000024': 'Merton',
+     'E09000025': 'Newham',
+     'E09000026': 'Redbridge',
+     'E09000027': 'Richmond upon Thames',
+     'E09000028': 'Southwark',
+     'E09000029': 'Sutton',
+     'E09000030': 'Tower Hamlets',
+     'E09000031': 'Waltham Forest',
+     'E09000032': 'Wandsworth',
+     'E09000033': 'Westminster'}
+
+borough_options = [
+        {'label': f"{key}, {value}", 'value': key}
+        for key, value in boroughs.items()
+    ]
+def forecasting():
     return dbc.Card([
         dbc.CardBody([
-            html.H1("Forecasting", className="card-title text-center mb-4"),
+            html.H1("Forecasting & Planning", className="card-title"),
             html.P(
-                "This section will display predicted crime counts and recommended resource allocation for each ward in London.",
-                className="card-text text-center mb-4"),
+                "Use this tool to view forecasted residential burglary and recommended police resource allocations across London boroughs.",
+                className="card-text text-center mb-4"
+            ),
 
-            # Description of the table
             html.Div([
-                html.H4("Forecast Data", className="mt-3 text-center"),
-                html.P(
-                    "The table below shows ward-level predictions and resource allocation recommendations. These will be populated once the forecasting model is implemented.",
-                    className="card-text text-center"),
-
-                # Search and sort controls
+                # About Forecasting & Planning
                 html.Div([
-                    # Search field
-                    dbc.Input(
-                        id="ward-search",
-                        type="text",
-                        placeholder="Search by ward name...",
-                        className="mb-3",
-                        style={"maxWidth": "300px", "margin": "0 auto"}
+                    html.H4("About Forecasts and Resource Allocation", className="mt-4 mb-3 text-start"),
+                    html.Ul([
+                        html.Li([
+                            html.Strong("3-Month Forecasts: "),
+                            "View predicted residential burglary counts for each ward over the next three months."
+                            "Use this to identify medium-term trends and assess where crime is expected to rise or fall."
+                        ], className="text-start"),
+                        html.Li([
+                            html.Strong("Next-Month Resource Allocation: "),
+                            "See recommended allocations of police working hours for the next month across wards to match anticipated needs."
+                            "These allocations are designed to help align deployment with projected demand."
+                        ], className="text-start"),
+                    ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"})
+                ], className="mb-4"),
+
+                html.Hr(),
+
+                html.Div([
+                    html.H5("Select Borough(s): ", className="mt-4 mb-2"),
+
+                    # Dropdown
+                    dcc.Dropdown(
+                        id="borough-dropdown",
+                        options=borough_options,
+                        multi=True,
+                        placeholder="Select one or more boroughs...",
+                        style={
+                            "width": "100%",
+                            "color": "#0a2147",
+                            "fontSize": "15px",
+                        }
                     ),
 
-                    # Sort radio buttons
-                    html.Div([
-                        dbc.RadioItems(
-                            id="sort-options",
-                            options=[
-                                {"label": "No Sort", "value": "none"},
-                                {"label": "Sort by Predicted Crime Count", "value": "crime"},
-                                {"label": "Sort by Resource Allocation", "value": "resource"}
-                            ],
-                            value="none",
-                            inline=True,
-                            className="mb-3"
-                        )
-                    ], className="text-center")
-                ], className="text-center"),
+                    html.Br(),
 
-                # Scrollable container for the table
-                html.Div([
-                    dbc.Table.from_dataframe(
-                        ward_df,
-                        striped=True,
-                        bordered=True,
-                        hover=True,
-                        responsive=True,
-                        className="table-dark mt-4",
-                        id="forecast-table"
+                    html.Small(
+                        "Switch between forecasts and allocation.",
+                        className="text-muted"
+                    ),
+                    # Tabs with custom styling
+                    dcc.Tabs(
+                        id="forecast-tabs",
+                        value="forecasts",
+                        children=[
+                            dcc.Tab(
+                                label="3-Month Forecasts",
+                                value="forecasts",
+                                style={
+                                    "backgroundColor": "#dce6f7",
+                                    "border": "1px solid #a8b6d4",
+                                    "color": "#1a2e55",
+                                    "fontWeight": "500",
+                                },
+                                selected_style={
+                                    "backgroundColor": "#1f3c88",
+                                    "color": "white",
+                                    "border": "2px solid #1f3c88",
+                                    "fontWeight": "700"
+                                }
+                            ),
+                            dcc.Tab(
+                                label="Next-Month Resource Allocation",
+                                value="allocation",
+                                style={
+                                    "backgroundColor": "#dce6f7",
+                                    "border": "1px solid #a8b6d4",
+                                    "color": "#1a2e55",
+                                    "fontWeight": "500",
+                                },
+                                selected_style={
+                                    "backgroundColor": "#1f3c88",
+                                    "color": "white",
+                                    "border": "2px solid #1f3c88",
+                                    "fontWeight": "700"
+                                }
+                            ),
+                        ],
+                        style={"marginBottom": "16px"}
+                    ),
+
+                    # Output with consistent height
+                    html.Div(
+                        id="forecasting-content",
+                        className="mt-3",
+                        style={
+                            "minHeight": "400px",
+                            "transition": "all 0.3s ease-in-out"
+                        }
                     )
-                ], style={
-                    'height': '600px',  # Fixed height to show approximately 15 rows
-                    'overflowY': 'auto',  # Enable vertical scrolling
-                    'marginTop': '20px'
-                })
-            ], className="p-3")
+                ], className="text-center")
+            ], className="p-4")
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
 
 
+
+# DATASETS
 deprivation_df = load_deprivation_data()
 burglaries_df = pd.read_parquet("data/processed/burglaries.parquet")
+transport_stops_df = pd.read_parquet("data/processed/stops_lsoa.parquet")
 stop_counts_df = pd.read_csv("data/processed/stop_counts_per_ward.csv")
 gdf_wards = gpd.read_file("data/boundaries/ward boundaries 2024/london_wards_merged.shp").to_crs("EPSG:4326")
 forecasts_df = pd.read_csv("data/processed/ward_hour_allocation_LP_method.csv")
@@ -697,6 +778,39 @@ def map_view():
                         children=dcc.Graph(id="map2", style={"height": "600px", "width": "100%"})
                     ),
                     md=6
+                )
+            ], className="mb-4"),
+
+            html.Hr(),
+            html.H4("Density Heatmaps", className="mb-3"),
+
+            dbc.Row([
+                dbc.Col(
+                    dcc.Dropdown(
+                        id="heatmap-selector",
+                        options=[
+                            {"label": "Ward Boundaries", "value": "base"},
+                            {"label": "IMD Score", "value": "imd"},
+                            {"label": "Forecasted Crime Count Density", "value": "crime_density"},
+                        ],
+                        value="base",
+                        multi=False, 
+                        clearable=False,
+                        style={"width": "300px"}
+                    )
+                )
+            ], className="mb-3"),
+
+            dbc.Row([
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-map3",
+                        type="circle",
+                        children=html.Iframe(
+                        id="heatmap-container",
+                        style={"width": "100%", "height": "600px", "border": "none"}
+                        )
+                    ),
                 )
             ])
         ])
@@ -806,7 +920,7 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
                                 html.I(className=f"bi {trend_arrow} me-1 {trend_color}", id="trend-icon"),
                                 f"{diff_pct}%"
                             ], className=f"fs-6 {trend_color}"),
-                            dbc.Tooltip("Change vs previous month", target="trend-icon")
+                            dbc.Tooltip("Change in residential burglary count vs previous month", target="trend-icon")
                         ])
                     ], width=6),
                     dbc.Col([
@@ -844,6 +958,26 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
             ])
         ])
 
+@app.callback(
+    Output("heatmap-container", "srcDoc"),
+    Input("heatmap-selector", "value")
+)
+def update_heatmap(selected_layers):
+    if not selected_layers:
+        raise PreventUpdate
+
+    # Determine which maps to include
+    base = "base" in selected_layers
+    imd = "imd" in selected_layers
+    crime = "crime_density" in selected_layers
+
+    # Generate the base map with wards
+    if base:
+        return generate_base_ward_map(gdf_wards, transport_stops_df)
+    elif imd:
+        return generate_imd_heatmap(gdf_wards, deprivation_df, transport_stops_df)
+    elif crime:
+        return generate_forecasted_crime_counts_heatmap(gdf_wards, forecasts_df, transport_stops_df)
 
 def about():
     return dbc.Card([
@@ -1744,10 +1878,8 @@ def update_census_visuals(n_clicks, selected_rows, toggle_value):
 
     if is_ward:
         grouped_df = census_df.groupby(['Ward code', 'Ward name']).sum(numeric_only=True).reset_index()
-        key_col = 'Ward code'
     else:
         grouped_df = census_df.set_index(['LSOA code', 'LSOA name']).reset_index()
-        key_col = 'LSOA code'
 
     total = grouped_df.sum(numeric_only=True)
 
@@ -1825,7 +1957,7 @@ def update_census_visuals(n_clicks, selected_rows, toggle_value):
             sel_vals = sel_row[total.index]
 
     selection_note = html.P(
-        "Tip: Select a row to compare that ward against overall figures.",
+        "Tip: Select a row in the table above to compare that ward against overall figures.",
         className="text-info fst-italic mb-3"
     ) if is_ward else html.P(
         "LSOA-level selection is currently not supported for detailed comparison.",
@@ -1845,6 +1977,7 @@ def update_census_visuals(n_clicks, selected_rows, toggle_value):
 # Add callback to control submenu visibility
 @app.callback(
     Output("data-explorer-submenu", "style"),
+Input("forecast-tabs", "value"),
     Input("url", "pathname")
 )
 def toggle_data_explorer_submenu(pathname):
@@ -1852,59 +1985,299 @@ def toggle_data_explorer_submenu(pathname):
         return {"display": "block"}
     return {"display": "none"}
 
+# FORECASTING & PLANNING CALLBACKS
+# TODO: GLOBAL STORAGES
+raw_forecasts_df = pd.read_csv('data/processed/sarima_final_forecast_per_ward.csv')
+lookup = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
+lookup_ward_borough = lookup[['WD24CD', 'WD24NM']].drop_duplicates()
+def prepare_forecast_table(selected_boroughs=None):
+    """
+    Transforms raw forecast data into a pivoted table format with integer values and ward/borough names.
+    Optionally filters by selected boroughs.
+    """
+    # Pivot the table: rows = ward code, columns = Month, values = mean forecast
+    pivot_df = raw_forecasts_df.pivot(index='Ward code', columns='Month', values='mean')
 
-# Add callback for ward search and sorting
-@app.callback(
-    Output("forecast-table", "children"),
-    [Input("ward-search", "value"),
-     Input("sort-options", "value")]
+    pivot_df.columns = [f"Predicted Crime Count: {col[:7]}" for col in pivot_df.columns]
+
+    # Replace NaNs (if any) with 0
+    pivot_df = pivot_df.fillna(0)
+
+    # Round to nearest integer and ensure non-negative values
+    pivot_df = pivot_df.round().astype(int).clip(lower=0)
+
+    # Reset index to bring 'Ward code' back as a column
+    pivot_df = pivot_df.reset_index()
+
+    # Merge with ward and borough names
+    merged_df = pivot_df.merge(lookup_ward_borough, on='Ward code', how='left')
+
+    # Optional: Reorder columns
+    final_df = merged_df.set_index(['Ward code', 'Ward name', 'Borough code', 'Borough name']).reset_index()
+
+    # Filter if boroughs are selected
+    if selected_boroughs:
+        final_df = final_df[final_df['Borough code'].isin(selected_boroughs)]
+        final_df = final_df.sort_values(by=['Borough name', 'Ward name'])
+        return final_df
+
+    return None
+
+def prepare_allocation(selected_boroughs=None):
+    """
+    Loads and optionally filters the ward-hour allocation data by selected boroughs.
+    """
+    allocation_df = pd.read_csv('data/processed/ward_hour_allocation_LP_method.csv')
+
+    # Rename columns to be more descriptive
+    allocation_df.rename(columns={
+        'Predicted_Crime_Count': 'Predicted Crime Count: 2025-04',
+        'Allocated_Officers_Rounded': 'Allocated Hours (Daily)'
+    }, inplace=True)
+
+    # Merge with ward/borough lookup to get readable names
+    merged_df = allocation_df.merge(lookup_ward_borough, on=['Ward code', 'Ward name'], how='left')
+
+    # ALlocated officers = allocated hours / 2 (rounded up)
+    merged_df['Allocated Police Officers (Daily)'] = np.ceil(merged_df['Allocated Hours (Daily)'] / 2).astype(int)
+    # Allow only integer values
+    merged_df['Predicted Crime Count: 2025-04'] = merged_df['Predicted Crime Count: 2025-04'].round().astype(int).clip(lower=0)
+
+    # Reorder columns: Borough name, Ward name, then allocation info
+    final_df = merged_df[[
+        'Ward code', 'Ward name', 'Borough code', 'Borough name',
+        'Predicted Crime Count: 2025-04', 'Allocated Hours (Daily)', 'Allocated Police Officers (Daily)'
+    ]]
+
+    # Filter by selected boroughs if provided
+    if selected_boroughs:
+        final_df = final_df[final_df['Borough code'].isin(selected_boroughs)]
+        # Sort by Borough name then Ward name
+        final_df = final_df.sort_values(by=['Borough name', 'Ward name'])
+        return final_df
+
+    return None
+
+@callback(
+    Output("forecasting-content", "children"),
+    Input("forecast-tabs", "value"),
+    Input("borough-dropdown", "value"),
+    prevent_initial_call=True
 )
-def filter_and_sort_wards(search_value, sort_option):
-    try:
-        ward_df = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
-        ward_df = ward_df[['WD24CD', 'WD24NM']].drop_duplicates()
-        ward_df['Predicted Crime Count'] = ''
-        ward_df['Resource Allocation'] = ''
-        ward_df.columns = ['Ward Code', 'Ward Name', 'Predicted Crime Count', 'Resource Allocation']
+def update_forecasting_tables_content(tab_value, selected_boroughs):
+    if tab_value == "forecasts":
+        filtered_df = prepare_forecast_table(selected_boroughs)
 
-        # Filter based on search
-        if search_value:
-            ward_df = ward_df[ward_df['Ward Name'].str.contains(search_value, case=False, na=False)]
+        return html.Div([
+            # Download button + download component
+            html.Div([
+                html.Br(),
+                html.Div(
+                    html.Button(
+                        "Download Table CSV",
+                        id="btn-download-csv",
+                        n_clicks=0,
+                        className="btn btn-primary mb-3"
+                    ),
+                    style={"textAlign": "left"}  # aligns button to the left
+                ),
+                dcc.Download(id="download-dataframe-csv")
+            ]),
 
-        # Sort based on radio selection
-        if sort_option == "crime":
-            ward_df = ward_df.sort_values('Predicted Crime Count', ascending=False)
-        elif sort_option == "resource":
-            ward_df = ward_df.sort_values('Resource Allocation', ascending=False)
-        # If sort_option is "none", no sorting is applied
 
-        return dbc.Table.from_dataframe(
-            ward_df,
-            striped=True,
-            bordered=True,
-            hover=True,
-            responsive=True,
-            className="table-dark mt-4"
-        )
-    except Exception as e:
-        print(f"Error in ward search/sort: {str(e)}")
+            dash_table.DataTable(
+                id='forecast-table',
+                data=filtered_df.to_dict('records'),
+                columns=[{"name": col, "id": col} for col in filtered_df.columns],
+                page_size=10,
+                sort_action='native',
+                selected_rows=[],
+                style_table={'overflowX': 'auto', 'maxWidth': '100%', 'margin': 'auto',
+                             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"},
+                style_header={
+                    'backgroundColor': '#205081', 'color': '#f0f4f8', 'fontWeight': '600', 'fontSize': '15px',
+                    'border': '1px solid #183b6e', 'textAlign': 'center', 'whiteSpace': 'normal', 'letterSpacing': '0.03em'
+                },
+                style_cell={
+                    'backgroundColor': '#e7edf7', 'color': '#102a54', 'padding': '10px 14px', 'fontSize': '14px',
+                    'border': '1px solid #c1c9de', 'textAlign': 'left', 'whiteSpace': 'normal',
+                    'lineHeight': '1.4', 'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+                },
+                style_data_conditional=[
+                    {'if': {'row_index': 'even'}, 'backgroundColor': '#d7e0f4'},
+                    {'if': {'state': 'active'}, 'backgroundColor': '#aac4f7', 'border': '1px solid #517acc'},
+                    {'if': {'state': 'selected'}, 'backgroundColor': '#8aa6e8',
+                     'border': '1px solid #3f5f9e', 'color': '#f9fafc', 'fontWeight': '600'},
+                ],
+                style_cell_conditional=[
+                    {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+                    {'if': {'column_id': 'Borough code'}, 'textAlign': 'center', 'fontWeight': '600'}
+                ],
+                page_action='native',
+                filter_action='native',
+                row_selectable='single'
+            ),
+            html.Hr(),
+            html.H4("Forecast Chart", className="text-start mb-3"),
+            html.P("Tip: Select a row in the table above to view its 3-month residential burglary forecast based on SARIMA modeling. "
+            "The forecast includes a 95% confidence interval to highlight prediction uncertainty.", className="text-info fst-italic text-start mb-3"),
+            html.Div(id="forecast-chart-display", className="mt-4")
+        ])
+
+    elif tab_value == "allocation":
+        allocation_df = prepare_allocation(selected_boroughs)
+
+        return html.Div([
+            # Resource limitation context
+            html.Div([
+                html.H6("Resource Limitations", className="mb-2 text-start"),
+                html.Ul([
+                    html.Li("Each ward has approximately 100 officers available daily between 06:00 and 22:00.",
+                            className="text-start"),
+                    html.Li(
+                        "Only 2 hours per officer (200 hours/day total) can be dedicated to burglary response, 4 days per week.",
+                        className="text-start"),
+                    html.Li("Officers cannot operate outside their assigned ward.", className="text-start"),
+                    html.Li(
+                        "Special operations using additional officers can be scheduled, but no more than once every 4 months.",
+                        className="text-start")
+                ], style={"listStylePosition": "inside", "paddingLeft": "0"}, className="mb-3 text-muted")
+            ], className="text-start"),
+
+            # Download button + download component
+            html.Br(),
+            html.Div([
+                html.Div(
+                    html.Button(
+                        "Download Table CSV",
+                        id="btn-download-csv",
+                        n_clicks=0,
+                        className="btn btn-primary mb-3"
+                    ),
+                    style={"textAlign": "left"}  # aligns button to the left
+                ),
+                dcc.Download(id="download-dataframe-csv")
+            ]),
+
+            dash_table.DataTable(
+                data=allocation_df.to_dict('records'),
+                columns=[{"name": col, "id": col} for col in allocation_df.columns],
+                page_size=10,
+                sort_action='native',
+                style_table={'overflowX': 'auto', 'maxWidth': '100%', 'margin': 'auto',
+                             'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"},
+                style_header={
+                    'backgroundColor': '#205081', 'color': '#f0f4f8', 'fontWeight': '600', 'fontSize': '15px',
+                    'border': '1px solid #183b6e', 'textAlign': 'center', 'whiteSpace': 'normal', 'letterSpacing': '0.03em'
+                },
+                style_cell={
+                    'backgroundColor': '#e7edf7', 'color': '#102a54', 'padding': '10px 14px', 'fontSize': '14px',
+                    'border': '1px solid #c1c9de', 'textAlign': 'left', 'whiteSpace': 'normal',
+                    'lineHeight': '1.4', 'fontFamily': "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+                },
+                style_data_conditional=[
+                    {'if': {'row_index': 'even'}, 'backgroundColor': '#d7e0f4'},
+                    {'if': {'state': 'active'}, 'backgroundColor': '#aac4f7', 'border': '1px solid #517acc'},
+                    {'if': {'state': 'selected'}, 'backgroundColor': '#8aa6e8',
+                     'border': '1px solid #3f5f9e', 'color': '#f9fafc', 'fontWeight': '600'},
+                ],
+                style_cell_conditional=[
+                    {'if': {'column_id': 'Ward code'}, 'textAlign': 'center', 'fontWeight': '600'},
+                    {'if': {'column_id': 'Borough code'}, 'textAlign': 'center', 'fontWeight': '600'}
+                ],
+                page_action='native',
+                filter_action='native'
+            )
+        ])
+
+# TODO: 1 CALLBACK FOR THE FORECASTING TAB CI PLOT
+
+@callback(
+    Output("download-dataframe-csv", "data"),
+    Input("btn-download-csv", "n_clicks"),
+    Input("forecast-tabs", "value"),
+    Input("borough-dropdown", "value"),
+    prevent_initial_call=True
+)
+def download_table(n_clicks, tab_value, selected_boroughs):
+    triggered_id = ctx.triggered_id
+
+    # Only proceed if the download button was clicked
+    if triggered_id != "btn-download-csv" or not n_clicks:
+        return dash.no_update
+
+    # Prepare dataframe based on the tab and filter
+    if tab_value == "forecasts":
+        df = prepare_forecast_table(selected_boroughs)
+        filename = "forecast_table.csv"
+    elif tab_value == "allocation":
+        df = prepare_allocation(selected_boroughs)
+        filename = "allocation_table.csv"
+    else:
+        return dash.no_update
+
+    # Return CSV file download
+    return dcc.send_data_frame(df.to_csv, filename, index=False)
+
+
+
+# Path to JSON charts
+forecast_path = "src/assets/forecast_charts"
+
+@app.callback(
+    Output("forecast-chart-display", "children"),
+    [
+        Input("forecast-table", "derived_virtual_data"),
+        Input("forecast-table", "selected_rows")
+    ],
+    prevent_initial_call=True
+)
+def display_forecast_chart(rows, selected_rows):
+    if not rows or selected_rows is None or len(selected_rows) == 0:
         return None
 
+    selected_row = rows[selected_rows[0]]
+    ward_code = selected_row.get("Ward code")  # Adjust if column name differs
 
-# Add new callbacks for sorting
-@app.callback(
-    Output("borough-sort-options", "value"),
-    Input("borough-sort-options", "value")
-)
-def update_borough_sort(sort_option):
-    return sort_option
+    json_filename = f"{ward_code}_forecast.json"
+    json_path = os.path.join(forecast_path, json_filename)
 
-@app.callback(
-    Output("ward-sort-options", "value"),
-    Input("ward-sort-options", "value")
-)
-def update_ward_sort(sort_option):
-    return sort_option
+    if not os.path.exists(json_path):
+        return html.Div(f"No chart found for ward: {ward_code}", className="text-danger")
+
+    with open(json_path, "r") as f:
+        chart = pio.from_json(json.dumps(json.load(f)))
+
+    # ✨ Optional: Adjust trace colors for better visibility
+    for trace in chart.data:
+        name = trace.name.lower() if trace.name else ""
+        if 'forecast' in name:
+            trace.line.color = "#00cfff"  # bright cyan
+        elif 'upper' in name or 'lower' in name:
+            trace.line.color = "#ff8800"  # orange for CI bounds
+        elif 'actual' in name:
+            trace.line.color = "#ffffff"  # white for actual data
+
+    # ✨ Apply dark mode styling
+    chart.update_layout(
+        plot_bgcolor="#1e1e2f",
+        paper_bgcolor="#1e1e2f",
+        font=dict(color="#f0f0f0"),
+        title_font_size=18,
+        margin=dict(t=40, b=40, l=40, r=40),
+        xaxis=dict(gridcolor='#333333'),
+        yaxis=dict(gridcolor="#333333"),
+        legend=dict(
+            x=0.99, y=0.99,
+            xanchor="right", yanchor="top",
+            bgcolor="rgba(30,30,30,0.6)",
+            bordercolor="#444444",
+            borderwidth=1,
+            font=dict(size=12, color="#ffffff")
+        )
+    )
+
+    return dcc.Graph(figure=chart, config={"displayModeBar": False})
 
 
 if __name__ == '__main__':
