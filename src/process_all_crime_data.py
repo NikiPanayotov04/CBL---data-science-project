@@ -52,7 +52,6 @@ df_burglaries = load_and_filter_burglary_spatial("data/crime 2022-2025", gdf_war
 lookup = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')[['LSOA code', 'Ward code', 'Borough code', 'Borough name']]
 df_burglaries_full = df_burglaries.merge(lookup, on=['LSOA code', 'Ward code'], how='inner')
 
-
 # === Save to Parquet ===
 output_path = Path("data/processed/burglaries.parquet")
 output_path.parent.mkdir(parents=True, exist_ok=True)

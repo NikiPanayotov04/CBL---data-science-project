@@ -172,6 +172,7 @@ df_lsoa_to_ward = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merge
 df_census_london = df_census_london.merge(df_lsoa_to_ward, on=['LSOA code', 'LSOA name'])
 df_dep_11_to_21_london = df_dep_11_to_21_london.merge(df_lsoa_to_ward, on=['LSOA code'])
 
+
 # == Save Files ==
 save_to_processed_parquet(df_census_london, 'census_lsoa.parquet')
 save_to_processed_parquet(df_dep_11_to_21_london, 'deprivation_lsoa.parquet')

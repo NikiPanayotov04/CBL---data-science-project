@@ -53,4 +53,5 @@ df_lsoa_to_ward_merged = df_lsoa_to_ward[['LSOA21CD', 'LSOA21NM', 'WD24CD', 'WD2
 df_lsoa_to_ward_merged.rename(columns={'LSOA21CD': 'LSOA code', 'LSOA21NM': 'LSOA name', 'WD24CD': 'Ward code', 'WD24NM': 'Ward name', 'LAD24CD': 'Borough code', 'LAD24NM': 'Borough name'}, inplace=True)
 df_lsoa_to_ward_merged.to_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv', index=False)
 
+
 print('Updated to merged ward boundaries and lookup version.')
