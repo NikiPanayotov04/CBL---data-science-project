@@ -1989,7 +1989,7 @@ def toggle_data_explorer_submenu(pathname):
 # TODO: GLOBAL STORAGES
 raw_forecasts_df = pd.read_csv('data/processed/sarima_final_forecast_per_ward.csv')
 lookup = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
-lookup_ward_borough = lookup[['WD24CD', 'WD24NM']].drop_duplicates()
+lookup_ward_borough = lookup[['Ward code', 'Ward name']].drop_duplicates()
 def prepare_forecast_table(selected_boroughs=None):
     """
     Transforms raw forecast data into a pivoted table format with integer values and ward/borough names.

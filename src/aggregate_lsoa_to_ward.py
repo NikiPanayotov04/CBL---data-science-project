@@ -30,4 +30,6 @@ df_burglaries = pd.read_parquet('data/processed/burglaries.parquet')
 # Aggregate burglary counts by Ward
 df_burglaries_ward = df_burglaries.groupby('Ward code').size().reset_index(name='Crime count')
 
-print(df_burglaries[''])
+print(df_burglaries.columns)
+print(df_dep_ward.columns)
+print(df_census_ward.columns)
