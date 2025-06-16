@@ -1,5 +1,6 @@
 *.csv
 !data/processed/sarima_final_forecast_per_ward.csv
+!data/processed/ward_hour_allocation_LP_method.csv
 *.xlsx
 *.shp
 *.dbf
