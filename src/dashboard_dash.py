@@ -18,6 +18,9 @@ import base64
 import uuid
 import folium
 from branca.element import Figure
+import plotly.express as px
+import plotly.graph_objects as go
+import json
 
 app = dash.Dash(
     __name__,
@@ -253,8 +256,8 @@ def homepage():
                                 html.Li(
                                     "Explore crime, deprivation, and census data to understand contributing factors."),
                                 html.Li("Review summarized data for quick insights."),
-                                html.Li("Access forecasts to see expected burglary rates by ward and time."),
-                                html.Li("Use the map view to guide patrol planning and resource distribution.")
+                                html.Li("Access forecasts & Planning to see expected burglary rates by ward and time and allocate police resources."),
+                                html.Li("Use the map view to gain spatial insights from the data.")
                             ])
                         ])
                     ]),
@@ -743,106 +746,151 @@ def forecasting():
 
 # DATASETS
 deprivation_df = load_deprivation_data()
+census_df = load_census_data()
 burglaries_df = pd.read_parquet("data/processed/burglaries.parquet")
 transport_stops_df = pd.read_parquet("data/processed/stops_lsoa.parquet")
 stop_counts_df = pd.read_csv("data/processed/stop_counts_per_ward.csv")
 gdf_wards = gpd.read_file("data/boundaries/ward boundaries 2024/london_wards_merged.shp").to_crs("EPSG:4326")
+gdf_boroughs = gpd.read_file("data/boundaries/borough boundaries 2011/London_Borough_Excluding_MHW.shp").to_crs("EPSG:4326")
 forecasts_df = pd.read_csv("data/processed/ward_hour_allocation_LP_method.csv")
 crime_counts_df = pd.read_csv("data/processed/monthly_burglary_per_ward.csv")
 
 # --- Map View Layout ---
+exclude_cols = {"Ward code", "Ward name", "Borough code", "Borough name", "LSOA code", "LSOA name"}
+
+map_options = ["Total Crime Count", "Predicted Crime Count"] + [col for col in deprivation_df.columns if
+                                                            col not in exclude_cols] + \
+          [col for col in census_df.columns if col not in exclude_cols]
+
 def map_view():
     return dbc.Card([
         dbc.CardBody([
             html.H1("Map View", className="card-title"),
-            html.P("Geospatial analysis of crime patterns.", className="card-text"),
+            html.P("Perform geospatial analysis of crime patterns.", className="card-text"),
+
+            dbc.Row([dbc.Col(html.Div(id="ward-details"), width=12, className="mb-4")]),
 
             dbc.Row([
-                dbc.Col(html.Div(id="ward1-details"), md=6),
-                dbc.Col(html.Div(id="ward2-details"), md=6)
-            ], className="mb-4"),
+                dbc.Col(html.H5("Boroughs", className="text-center mt-4 mb-3")),
+                dbc.Col(html.H5("Select a Ward", className="text-center mt-4 mb-3")),
+            ]),
 
             dbc.Row([
-                dbc.Col(
-                    dcc.Loading(
-                        id="loading-map1",
-                        type="circle",
-                        children=dcc.Graph(id="map1", style={"height": "600px", "width": "100%"})
-                    ),
-                    md=6
-                ),
-                dbc.Col(
-                    dcc.Loading(
-                        id="loading-map2",
-                        type="circle",
-                        children=dcc.Graph(id="map2", style={"height": "600px", "width": "100%"})
-                    ),
-                    md=6
-                )
+                dbc.Col(dcc.Loading(id="loading-map-borough", type="circle",
+                                    children=dcc.Graph(id="map-borough", style={"height":"600px", "width":"100%"})), md=6),
+                dbc.Col(dcc.Loading(id="loading-map-ward", type="circle",
+                                    children=dcc.Graph(id="map-ward", style={"height":"600px", "width":"100%"})), md=6),
             ], className="mb-4"),
 
             html.Hr(),
-            html.H4("Density Heatmaps", className="mb-3"),
+            html.H4("Contextual Maps", className="mb-3"),
 
-            dbc.Row([
-                dbc.Col(
+
+
+    dbc.Row([
+                dbc.Col(html.Div([
+                    html.Label("Select Choropleth Map", className="mb-1"),
                     dcc.Dropdown(
-                        id="heatmap-selector",
-                        options=[
-                            {"label": "Ward Boundaries", "value": "base"},
-                            {"label": "IMD Score", "value": "imd"},
-                            {"label": "Forecasted Crime Count Density", "value": "crime_density"},
-                        ],
-                        value="base",
-                        multi=False, 
+                        id="choropleth-selector",
+                        options=map_options,
+                        value="Total Crime Count",
                         clearable=False,
-                        style={"width": "300px"}
-                    )
-                )
+                        style={"width": "300px"},
+                    ),
+                ])),
+                dbc.Col(html.Div([
+                    html.Label("Select Overlay Type", className="mb-1"),
+                    dcc.Dropdown(
+                        id="overlay-selector",
+                        options=[
+                            {"label": "No Overlay", "value": "none"},
+                            {"label": "Total Crime Density", "value": "crime_density"},
+                            {"label": "Stops", "value": "stops"},
+                        ],
+                        value="none",
+                        clearable=False,
+                        style={"width": "300px"},
+                    ),
+                ])),
             ], className="mb-3"),
 
             dbc.Row([
-                dbc.Col(
-                    dcc.Loading(
-                        id="loading-map3",
-                        type="circle",
-                        children=html.Iframe(
-                        id="heatmap-container",
-                        style={"width": "100%", "height": "600px", "border": "none"}
-                        )
-                    ),
-                )
+                dbc.Col(dcc.Loading(id="loading-map3", type="circle",
+                                    children=dcc.Graph(id="heatmap-graph", style={"width":"100%", "height":"600px"}))),
             ])
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
 
+# --- Callbacks ---
 
-# --- Callback ---
+# Load borough map once on page load - no inputs required
 @app.callback(
-    [Output("ward1-details", "children"),
-     Output("ward2-details", "children"),
-     Output("map1", "figure"),
-     Output("map2", "figure")],
-    [Input("map1", "clickData"),
-     Input("map2", "clickData")]
+    Output("map-borough", "figure"),
+    Input("map-borough", "id")  # Dummy input to trigger once on load
 )
-def update_ward_details(clickData1, clickData2):
-    fig1 = update_map(clickData1, gdf_wards, burglaries_df)
-    fig2 = update_map(clickData2, gdf_wards, burglaries_df)
+def load_borough_map(_):
+    fig = create_borough_map(gdf_boroughs)
+    return fig
 
-    return (
-        generate_details(clickData1, deprivation_df, stop_counts_df),
-        generate_details(clickData2, deprivation_df, stop_counts_df),
-        fig1,
-        fig2
+
+# Update ward map and ward details on ward click
+@app.callback(
+    [Output("ward-details", "children"),
+     Output("map-ward", "figure")],
+    [Input("map-ward", "clickData")]
+)
+def update_ward_map_and_details(ward_clickData):
+    fig_ward = update_ward_map(ward_clickData, gdf_wards, burglaries_df)
+    details = generate_details(ward_clickData, deprivation_df, stop_counts_df)
+    return details, fig_ward
+
+
+def create_borough_map(gdf_boroughs):
+    boroughs = gdf_boroughs.copy()
+    boroughs["borough_name"] = boroughs["NAME"]
+
+    # Use px.choropleth_mapbox with discrete colors by borough_name
+    fig = px.choropleth_mapbox(
+        boroughs,
+        geojson=json.loads(boroughs.to_json()),
+        locations=boroughs.index,  # Using index, no unique id for boroughs
+        color="borough_name",
+        hover_name="borough_name",
+        mapbox_style="carto-positron",
+        center={"lat": 51.5, "lon": -0.1},
+        zoom=8.8,
+        opacity=0.6,
+        labels={"borough_name": "Borough"},
+        category_orders={"borough_name": sorted(boroughs["borough_name"].unique())}
     )
 
+    # Move legend inside map area (top right)
+    fig.update_layout(
+        margin={"r":0, "t":0, "l":0, "b":0},
+        showlegend=True,
+        legend=dict(
+            y=0.99,
+            yanchor="top",
+            x=0.99,
+            xanchor="right",
+            bgcolor="rgba(255,255,255,0.7)",
+            bordercolor="gray",
+            borderwidth=1,
+            font=dict(size=10)
+        )
+    )
 
-def update_map(clickData, gdf_wards, df_burglaries):
-    selected_ward = clickData["points"][0].get("location") if clickData and "points" in clickData else None
+    return fig
 
-    merged = gdf_wards.merge(df_burglaries, left_on="WD24CD", right_on="Ward code", how="left")
+
+def update_ward_map(clickData, gdf_wards, df_burglaries):
+    selected_ward = None
+    if clickData and "points" in clickData:
+        selected_ward = clickData["points"][0].get("location")
+
+    merged = gdf_wards.merge(crime_counts_df, left_on="WD24CD", right_on="Ward code", how="left")
     merged["Highlight"] = merged["WD24CD"].apply(lambda x: "Selected Ward" if x == selected_ward else "Other Wards")
+    merged.rename(columns={"LAD24NM": "Borough code", "LAD24CD": "Borough name"}, inplace=True)
 
     fig = px.choropleth_mapbox(
         merged,
@@ -860,11 +908,28 @@ def update_map(clickData, gdf_wards, df_burglaries):
             "Ward code": True,
             "Highlight": False,
             "WD24CD": False,
+            "Borough name": True,
+            "Borough code": True,
         }
     )
-    fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-    return fig
 
+    # Move legend inside map area (top right) for ward map
+    fig.update_layout(
+        margin={"r":0, "t":0, "l":0, "b":0},
+        showlegend=True,
+        legend=dict(
+            y=0.99,
+            yanchor="top",
+            x=0.99,
+            xanchor="right",
+            bgcolor="rgba(255,255,255,0.7)",
+            bordercolor="gray",
+            borderwidth=1,
+            font=dict(size=10)
+        )
+    )
+
+    return fig
 
 def get_stop_count(ward_code, stop_counts_df):
     match = stop_counts_df.loc[stop_counts_df["Ward code"] == ward_code, "stop_count"]
@@ -910,10 +975,15 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
 
         return dbc.Card([
             dbc.CardBody([
-                html.H4(ward_name, className="card-title mb-4"),
+
+                # Ward name moved left in the details card
+                dbc.Row([
+                    html.H4(f"Details for {ward_name} Ward", className="text-start mb-3"),
+                ]),
 
                 dbc.Row([
                     dbc.Col([
+                        html.Div("Predicted Crime", className="text-muted"),
                         html.Div([
                             html.Span(f"{predicted_crimes}", className="fs-3 fw-bold me-2"),
                             html.Span([
@@ -950,34 +1020,105 @@ def generate_details(clickData, deprivation_df, stop_counts_df):
                     ], width=6)
                 ]),
             ])
-        ], className="shadow-sm")
+        ])
     else:
         return dbc.Card([
             dbc.CardBody([
-                html.P("Select ward on the map to inspect details.", className="text-muted mb-0")
+                html.P("Select a ward on the right map to inspect details.", className="text-info fst-italic mb-3")
             ])
         ])
 
+
 @app.callback(
-    Output("heatmap-container", "srcDoc"),
-    Input("heatmap-selector", "value")
+    Output("heatmap-graph", "figure"),
+    [
+        Input("choropleth-selector", "value"),
+        Input("overlay-selector", "value"),
+    ]
 )
-def update_heatmap(selected_layers):
-    if not selected_layers:
-        raise PreventUpdate
+def update_heatmap(choropleth_value, overlay_value):
+    wards = gdf_wards.rename(columns={"WD24CD": "Ward code"}).copy()
 
-    # Determine which maps to include
-    base = "base" in selected_layers
-    imd = "imd" in selected_layers
-    crime = "crime_density" in selected_layers
+    deprivation_ward = deprivation_df.groupby(['Ward code']).mean(numeric_only=True).reset_index()
+    census_ward = census_df.groupby(['Ward code']).sum(numeric_only=True).reset_index()
+    burglaries_ward = burglaries_df.groupby('Ward code').size().reset_index(name='Total Crime Count')
+    forecasts_ward = forecasts_df.rename(columns={"Predicted_Crime_Count": "Predicted Crime Count"})
 
-    # Generate the base map with wards
-    if base:
-        return generate_base_ward_map(gdf_wards, transport_stops_df)
-    elif imd:
-        return generate_imd_heatmap(gdf_wards, deprivation_df, transport_stops_df)
-    elif crime:
-        return generate_forecasted_crime_counts_heatmap(gdf_wards, forecasts_df, transport_stops_df)
+    wards_merged = wards.merge(deprivation_ward, on="Ward code", how="left") \
+        .merge(census_ward, on="Ward code", how="left") \
+        .merge(burglaries_ward, on="Ward code", how="left") \
+        .merge(forecasts_ward, on="Ward code", how="left")
+
+    geojson_data = json.loads(wards_merged.to_crs("EPSG:4326").to_json())
+
+    if choropleth_value in wards_merged.columns:
+        fig = px.choropleth_mapbox(
+            wards_merged,
+            geojson=geojson_data,
+            locations="Ward code",
+            featureidkey="properties.Ward code",
+            color=choropleth_value,
+            color_continuous_scale="Reds",
+            opacity=0.6,
+            hover_name="WD24NM",
+            mapbox_style="carto-positron",
+            zoom=9,
+            center=dict(lat=51.5074, lon=-0.1278),
+        )
+    else:
+        fig = px.choropleth_mapbox(
+            wards_merged,
+            geojson=geojson_data,
+            locations="Ward code",
+            featureidkey="properties.Ward code",
+            color_discrete_sequence=["#888"],
+            opacity=0.4,
+            hover_name="WD24CD",
+            mapbox_style="carto-positron",
+            zoom=9,
+            center=dict(lat=51.5074, lon=-0.1278),
+        )
+
+    # Add overlays
+    if overlay_value == "crime_density" and not burglaries_df.empty:
+        fig.add_trace(go.Densitymapbox(
+            lat=burglaries_df["Latitude"],
+            lon=burglaries_df["Longitude"],
+            radius=15,
+            colorscale="YlOrRd",
+            opacity=0.5,
+            name="Total Crime Density"
+        ))
+    elif overlay_value == "stops" and not transport_stops_df.empty:
+        fig.add_trace(go.Scattermapbox(
+            lat=transport_stops_df["Latitude"],
+            lon=transport_stops_df["Longitude"],
+            mode="markers",
+            marker=go.scattermapbox.Marker(size=6, color="blue", opacity=0.7),
+            name="Stops",
+            text=transport_stops_df["CommonName"],
+            hoverinfo='text',
+        ))
+
+    fig.update_layout(
+        margin={"r":0,"t":0,"l":0,"b":0},
+        legend=dict(
+            y=0.95, yanchor="top",
+            x=0.95, xanchor="right",
+            bgcolor="rgba(255,255,255,0.7)",
+            bordercolor="gray",
+            borderwidth=1
+        ),
+        mapbox=dict(
+            bearing=0,
+            pitch=0,
+            zoom=9,
+            center=dict(lat=51.5074, lon=-0.1278),
+        ),
+        dragmode="pan"
+    )
+    return fig
+
 
 def about():
     return dbc.Card([
@@ -1093,7 +1234,193 @@ def display_page(pathname):
     else:
         return html.H1("404 - Page not found")
 
+# SUMMARIZED DATA
+def create_correlation_matrix_fig():
+    df_b = pd.read_parquet('data/processed/burglaries.parquet')
+    df_burglaries = df_b.groupby(['Ward code', 'Month']).size().reset_index(name='Crime count')
 
+    df_c = pd.read_parquet('data/processed/census_lsoa.parquet')
+    df_census = df_c.groupby('Ward code').sum(numeric_only=True).reset_index()  # sum of LSOAs in each ward
+
+    df_d = pd.read_parquet('data/processed/deprivation_lsoa.parquet')
+    df_deprivation = df_d.groupby('Ward code').mean(numeric_only=True).reset_index()  # average of LSOAs in each ward
+    score_cols = [col for col in df_deprivation.columns if 'Score' in col] + ['Ward code']
+    df_deprivation = df_deprivation[score_cols]
+
+    stops_df = pd.read_csv('data/processed/stop_counts_per_ward.csv')
+    stops_df.rename(columns={'stop_count': 'Transport stops count'}, inplace=True)
+
+    df_ward_features = (df_burglaries
+                        .merge(df_census, on="Ward code")
+                        .merge(df_deprivation, on="Ward code")
+                        .merge(stops_df[["Ward code", "Transport stops count"]], on="Ward code", how="left")
+                        )
+
+    # add normalized crime columns
+    df_ward_features["Crimes per 1,000 people"] = (df_ward_features["Crime count"] / df_ward_features[
+        "Total population"]) * 1000
+    df_ward_features["Crimes per 1,000 dwellings"] = (df_ward_features["Crime count"] / df_ward_features[
+        "Total: All dwellings"]) * 1000
+    df_ward_features["Crimes per 1,000 households"] = (
+                                                              df_ward_features["Crime count"] / df_ward_features[
+                                                          "Total: All households"]
+                                                      ) * 1000
+
+    # Filter columns with "Score" in the name for correlation
+    numeric_data = df_ward_features.select_dtypes(include="number")
+    corr_df = numeric_data.corr()
+
+    target_vars = ["Crime count", "Crimes per 1,000 people", "Crimes per 1,000 dwellings",
+                   "Crimes per 1,000 households"]
+    crime_corr = corr_df[target_vars].drop(index=target_vars)
+
+    fig = px.imshow(
+        crime_corr,
+        text_auto='.2f',
+        aspect='auto',
+        color_continuous_scale='RdBu_r',
+        origin='upper',
+        title=f'Correlation Matrix at Ward-level',
+        labels=dict(x="Features", y="Features", color="Correlation"),
+    )
+    fig.update_layout(
+        margin=dict(l=40, r=40, t=60, b=40),
+        height=1200,
+        plot_bgcolor='#1e1e2f',  # Dark plot background
+        paper_bgcolor='#1e1e2f',  # Dark paper (overall) background
+        font=dict(color='white'),  # White font color for text
+        xaxis=dict(
+            tickangle=45,  # Rotate x-axis labels
+            tickfont=dict(color='white'),
+            showgrid=False,
+            zeroline=False,
+            linecolor='white',
+            mirror=True,
+        ),
+        yaxis=dict(
+            tickfont=dict(color='white'),
+            showgrid=False,
+            zeroline=False,
+            linecolor='white',
+            mirror=True,
+        ),
+        coloraxis_colorbar=dict(
+            title_font=dict(color='white'),
+            tickfont=dict(color='white'),
+            bgcolor='#1e1e2f',
+        )
+    )
+
+    return fig
+
+def summary_insights():
+    # Load data
+
+    census_df = pd.read_parquet('data/processed/census_lsoa.parquet')
+
+    # Aggregate census to ward level
+    ward_census_df = census_df.groupby(
+        ['Ward code', 'Ward name', 'Borough code', 'Borough name']
+    ).sum(numeric_only=True).reset_index()
+
+    # Monthly ward-level crime counts
+    ward_monthly_crimes = (
+        burglaries_df
+        .groupby(['Month', 'Ward code', 'Ward name', 'Borough code', 'Borough name'])
+        .size()
+        .reset_index(name='Crime count')
+    )
+
+    # Merge census data into crime data
+    summary_df = ward_monthly_crimes.merge(
+        ward_census_df,
+        on=['Ward code', 'Ward name', 'Borough code', 'Borough name'],
+        how='left'
+    )
+
+    # Calculate crime rate per 1,000 residents
+    summary_df["Crimes per 1,000 people"] = (
+        summary_df["Crime count"] / summary_df["Total population"]
+    ) * 1000
+
+    # Borough-level total crime rate
+    borough_crimes = summary_df.groupby("Borough name")["Crime count"].sum().reset_index()
+    borough_pop = ward_census_df.groupby("Borough name")["Total population"].sum().reset_index()
+    borough_rates = borough_crimes.merge(borough_pop, on="Borough name")
+    borough_rates["Rate per 1,000"] = (
+        borough_rates["Crime count"] / borough_rates["Total population"]
+    ) * 1000
+
+    highest_borough = borough_rates.sort_values("Rate per 1,000", ascending=False).iloc[0]
+
+    # Ward-level total crime and rate
+    ward_totals = summary_df.groupby(
+        ['Ward code', 'Ward name', 'Borough name']
+    )[["Crime count", "Total population"]].sum().reset_index()
+    ward_totals["Rate per 1,000"] = (
+        ward_totals["Crime count"] / ward_totals["Total population"]
+    ) * 1000
+
+    top_rate_ward = ward_totals.sort_values("Rate per 1,000", ascending=False).iloc[0]
+    top_total_ward = ward_totals.sort_values("Crime count", ascending=False).iloc[0]
+
+    # City-wide monthly crime trend
+    trend_df = (
+        summary_df
+        .groupby("Month")["Crime count"]
+        .sum()
+        .reset_index()
+    )
+    trend_df["Month"] = pd.to_datetime(trend_df["Month"])
+    trend_df = trend_df.sort_values("Month")
+
+    # Compute average monthly change and percent growth
+    trend_df["Monthly change"] = trend_df["Crime count"].diff()
+    avg_monthly_change = trend_df["Monthly change"].mean()
+    pct_growth = (
+        (trend_df["Crime count"].iloc[-1] - trend_df["Crime count"].iloc[0])
+        / trend_df["Crime count"].iloc[0]
+    ) * 100
+
+    # Helper function to make insight cards
+    def card(title, value):
+        return html.Div([
+            html.H5(title, style={"marginBottom": "0.5em", "color": "white"}),
+            html.Div(value, style={"fontSize": "18px", "color": "#cce6ff"})
+        ], style={
+            "backgroundColor": "#2a2a40",
+            "padding": "1em",
+            "borderRadius": "10px",
+            "boxShadow": "0 2px 6px rgba(0,0,0,0.2)",
+            "margin": "10px",
+            "flex": "1"
+        })
+
+    insights = html.Div([
+        html.H4("Global Key Insights", className="mt-4 mb-3 text-white"),
+        html.P('Aggregated indicators across London for the entire time range. The first time trend is the average month-over-month increase/decrease, the second time'\
+               ' trend is the long-term increase/decrease across the full period.',  style={'fontStyle': 'italic'}),
+        html.Div([
+            card("🔹 Highest Borough Crime Rate",
+                 f"{highest_borough['Borough name']} – {highest_borough['Rate per 1,000']:.1f} per 1,000 people"),
+            card("🔹 Highest Ward Crime Rate",
+                 f"{top_rate_ward['Ward name']} ({top_rate_ward['Borough name']}) – {top_rate_ward['Rate per 1,000']:.1f} per 1,000"),
+        ], style={"display": "flex", "flexWrap": "wrap"}),
+
+        html.Div([
+            card("🔹 Most Total Incidents (Ward)",
+                 f"{top_total_ward['Ward name']} ({top_total_ward['Borough name']}) – {top_total_ward['Crime count']} incidents"),
+            card("🔹 Trend (Apr 2022 – Mar 2025)",
+                 f"{avg_monthly_change:+.2f} crimes/month, {pct_growth:.1f}% total growth"),
+        ], style={"display": "flex", "flexWrap": "wrap"}),
+
+        html.Hr(),
+    ])
+
+    return insights
+
+correlation_matrix_fig = create_correlation_matrix_fig()
+insights = summary_insights()
 def summarized_data():
     # Get list of available months
     months = []
@@ -1108,11 +1435,19 @@ def summarized_data():
 
     return dbc.Card([
         dbc.CardBody([
-            html.H1("Summarized Data", className="card-title text-center mb-4"),
-            html.P("Ward-level burglary statistics", className="card-text text-center mb-4"),
+            html.H1("Summarized Data", className="card-title"),
+            html.P("Explore key insights and aggregated statistics from all datasets.",
+                   className="card-text text-center mb-4"),
+
+            html.Br(),
+
+            # Key insights HERE
+            insights,
 
             # Month picker
+            html.H4("Monthly Key Insights", className="mt-4 mb-3 text-white"),
             html.Div([
+                html.H5("Choose Month", className="mt-4 mb-2"),
                 dcc.Dropdown(
                     id='summary-month-picker',
                     options=[{'label': month, 'value': month} for month in months],
@@ -1123,8 +1458,17 @@ def summarized_data():
                 )
             ], className="text-center"),
 
+
             # Content container that will be updated by the callback
-            html.Div(id="summarized-data-content", children=update_summarized_data(default_month, 'rate', 'rate'))
+            html.Div(id="summarized-data-content", children=update_summarized_data(default_month, 'rate', 'rate')),
+
+            # Correlation Matrix
+            html.Div([
+                html.Hr(),
+                html.H4("Correlation of All Features with Crime Metrics", className="text-start mb-3"),
+                html.P('Includes the number of public transport access stops per ward as extra feature.', style={'fontStyle': 'italic'}),
+                dcc.Graph(figure=correlation_matrix_fig)])
+
         ])
     ], style={"marginLeft": "250px", "width": "100%"})
 
@@ -1267,9 +1611,11 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
                 html.Div([
                     html.H4(f"Data Period: {selected_month}", className="text-center text-muted mb-3"),
                     html.Div([
-                        html.Span(f"Total Burglaries: {total_current:,} ", className="me-4"),
+                        html.Span(f"Total Burglaries: ", className="text-muted"),
+                        html.Span(f"{total_current}    ", className="fw-bold"),
+                        html.Span(" - Change from previous month: ", className="text-muted"),
                         html.Span(
-                            f"Change from previous month: {total_growth:+.1f}%",
+                            f"{total_growth:+.1f}%",
                             className=f"text-{'success' if total_growth < 0 else 'danger'}"
                         )
                     ], className="text-center mb-4")
@@ -1281,15 +1627,15 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
                     dbc.Col([
                         dbc.Card([
                             dbc.CardBody([
-                                html.H5("Highest Crime Rate Borough", className="text-center mb-3"),
-                                html.H3(highest_rate_borough['Borough'], className="text-center text-danger mb-3"),
+                                html.H5("Most Affected Borough", className="text-center mb-3"),
+                                html.H3(highest_rate_borough['Borough'], className="text-center text-primary mb-3"),
                                 html.Div([
                                     html.Div([
                                         html.Span("Rate: ", className="text-muted"),
                                         html.Span(f"{highest_rate_borough['Rate per 1,000']} per 1,000", className="fw-bold")
                                     ], className="mb-2"),
                                     html.Div([
-                                        html.Span("Total Incidents: ", className="text-muted"),
+                                        html.Span("Crime Count: ", className="text-muted"),
                                         html.Span(f"{highest_rate_borough['Current Count']:,}", className="fw-bold")
                                     ], className="mb-2"),
                                     html.Div([
@@ -1317,7 +1663,7 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
                                         html.Span(f"{ward_stats.iloc[0]['Rate per 1,000']} per 1,000", className="fw-bold")
                                     ], className="mb-2"),
                                     html.Div([
-                                        html.Span("Incidents: ", className="text-muted"),
+                                        html.Span("Crime Count: ", className="text-muted"),
                                         html.Span(f"{ward_stats.iloc[0]['Current Count']:,}", className="fw-bold")
                                     ], className="mb-2"),
                                     html.Div([
@@ -1340,7 +1686,7 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
                                 html.H3(top_lsoa['LSOA name'], className="text-center text-primary mb-3"),
                                 html.Div([
                                     html.Div([
-                                        html.Span("Incidents: ", className="text-muted"),
+                                        html.Span("Crime Count: ", className="text-muted"),
                                         html.Span(f"{top_lsoa['current_count']:,}", className="fw-bold")
                                     ], className="mb-2"),
                                     html.Div([
@@ -1422,37 +1768,6 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
                         })
                     ], md=6)
                 ]),
-
-                # Key Insights Section
-                html.Div([
-                    html.H3("Key Insights", className="text-center mb-4"),
-                    dbc.Row([
-                        dbc.Col([
-                            html.Ul([
-                                html.Li([
-                                    html.Strong("Highest Borough Rate: "),
-                                    f"{highest_rate_borough['Borough']} has the highest borough-level burglary rate at {highest_rate_borough['Rate per 1,000']} per 1,000 people."
-                                ], className="mb-3"),
-                                html.Li([
-                                    html.Strong("Highest Ward Rate: "),
-                                    f"{ward_stats.iloc[0]['Ward Name']} in {ward_stats.iloc[0]['Borough']} has the highest ward-level burglary rate at {ward_stats.iloc[0]['Rate per 1,000']} per 1,000 people."
-                                ], className="mb-3")
-                            ])
-                        ], md=6),
-                        dbc.Col([
-                            html.Ul([
-                                html.Li([
-                                    html.Strong("Most Incidents: "),
-                                    f"{ward_stats.loc[ward_stats['Current Count'].idxmax()]['Ward Name']} in {ward_stats.loc[ward_stats['Current Count'].idxmax()]['Borough']} had the highest number of incidents with {ward_stats['Current Count'].max()} burglaries."
-                                ], className="mb-3"),
-                                html.Li([
-                                    html.Strong("Trend: "),
-                                    f"Overall burglary incidents have {'decreased' if total_growth < 0 else 'increased'} by {abs(total_growth):.1f}% compared to the previous month."
-                                ], className="mb-3")
-                            ])
-                        ], md=6)
-                    ])
-                ], className="mt-4 p-4 bg-light rounded")
             ], className="p-4")
         ]
     except Exception as e:
@@ -1543,6 +1858,30 @@ def display_crime_data(month, ward):
                 marker=dict(color="#ff0000", size=12),
                 name="Selected Month"
             )
+
+            # Determine average line: ward-specific if ward selected, else city-wide
+            if ward:
+                avg_count = trend_counts["Crime count"].mean()
+                avg_label = "Ward Average"
+            else:
+                citywide_counts = (
+                    burglaries_df.groupby("Month")
+                    .size()
+                    .reindex(all_months, fill_value=0)
+                )
+                avg_count = citywide_counts.mean()
+                avg_label = "London Average"
+
+            # Add dotted orange average line
+            line_fig.add_hline(
+                y=avg_count,
+                line_dash="dot",
+                line_color="orange",
+                annotation_text=avg_label,
+                annotation_position="top left",
+                annotation_font_color="orange"
+            )
+
             # Monthly seasonal pattern
             seasonal_df = trend_df.copy()
             seasonal_df['Month name'] = seasonal_df['Month'].dt.month_name()
@@ -1989,7 +2328,7 @@ def toggle_data_explorer_submenu(pathname):
 # TODO: GLOBAL STORAGES
 raw_forecasts_df = pd.read_csv('data/processed/sarima_final_forecast_per_ward.csv')
 lookup = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
-lookup_ward_borough = lookup[['Ward code', 'Ward name']].drop_duplicates()
+lookup_ward_borough = lookup[['Ward code', 'Ward name', 'Borough code', 'Borough name']].drop_duplicates()
 def prepare_forecast_table(selected_boroughs=None):
     """
     Transforms raw forecast data into a pivoted table format with integer values and ward/borough names.
@@ -2190,8 +2529,6 @@ def update_forecasting_tables_content(tab_value, selected_boroughs):
             )
         ])
 
-# TODO: 1 CALLBACK FOR THE FORECASTING TAB CI PLOT
-
 @callback(
     Output("download-dataframe-csv", "data"),
     Input("btn-download-csv", "n_clicks"),
@@ -2248,7 +2585,7 @@ def display_forecast_chart(rows, selected_rows):
     with open(json_path, "r") as f:
         chart = pio.from_json(json.dumps(json.load(f)))
 
-    # ✨ Optional: Adjust trace colors for better visibility
+    # Adjust trace colors for better visibility
     for trace in chart.data:
         name = trace.name.lower() if trace.name else ""
         if 'forecast' in name:
@@ -2258,7 +2595,7 @@ def display_forecast_chart(rows, selected_rows):
         elif 'actual' in name:
             trace.line.color = "#ffffff"  # white for actual data
 
-    # ✨ Apply dark mode styling
+    # Apply dark mode styling
     chart.update_layout(
         plot_bgcolor="#1e1e2f",
         paper_bgcolor="#1e1e2f",
