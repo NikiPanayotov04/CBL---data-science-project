@@ -344,15 +344,15 @@ def crime_data():
                     html.H4("About Data Attributes", className="mt-4 mb-3 text-start"),
                     html.Ul([
                         html.Li([html.Strong("Crime ID: "), "Unique identifier for each crime incident."], className="text-start"),
-                        html.Li([html.Strong("Month: "), "The month when the crime was reported"], className="text-start"),
-                        html.Li([html.Strong("Reported by: "), "The police force that recorded the crime"], className="text-start"),
-                        html.Li([html.Strong("Falls within: "), "The police force responsible for the area"], className="text-start"),
-                        html.Li([html.Strong("Longitude & Latitude: "), "Geographic coordinates of the crime location"], className="text-start"),
-                        html.Li([html.Strong("Location: "), "Street name or area where the crime occurred"], className="text-start"),
-                        html.Li([html.Strong("LSOA code & name: "), "Lower Layer Super Output Area identifier and name"], className="text-start"),
-                        html.Li([html.Strong("Crime type: "), "Category of the crime committed (all are burglary)"], className="text-start"),
-                        html.Li([html.Strong("Last outcome category: "), "The most recent status or resolution of the case"], className="text-start"),
-                        html.Li([html.Strong("Context: "), "Additional information about the crime incident"], className="text-start"),
+                        html.Li([html.Strong("Month: "), "The month when the crime was reported."], className="text-start"),
+                        html.Li([html.Strong("Reported by: "), "The police force that recorded the crime."], className="text-start"),
+                        html.Li([html.Strong("Falls within: "), "The police force responsible for the area."], className="text-start"),
+                        html.Li([html.Strong("Longitude & Latitude: "), "Geographic coordinates of the crime location."], className="text-start"),
+                        html.Li([html.Strong("Location: "), "Street name or area where the crime occurred."], className="text-start"),
+                        html.Li([html.Strong("LSOA code & name: "), "Lower Layer Super Output Area identifier and name."], className="text-start"),
+                        html.Li([html.Strong("Crime type: "), "Category of the crime committed (all are burglary)."], className="text-start"),
+                        html.Li([html.Strong("Last outcome category: "), "The most recent status or resolution of the case."], className="text-start"),
+                        html.Li([html.Strong("Context: "), "Additional information about the crime incident."], className="text-start"),
                     ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"})
                 ], className="mb-4"),
 
@@ -532,19 +532,19 @@ def census_data():
                 html.Ul([
                     html.Li([
                         html.Strong("Population Demography: "),
-                        "Detailed breakdown of population by age groups (under 15, 15-64, 65+)"
+                        "Detailed breakdown of population by age groups (under 15, 15-64, 65+)."
                     ], className="text-start"),
                     html.Li([
                         html.Strong("Household Composition: "),
-                        "Breakdown of household composition including single-person households and family structures"
+                        "Breakdown of household composition including single-person households and family structures."
                     ], className="text-start"),
                     html.Li([
                         html.Strong("Accommodation Types: "),
-                        "Distribution of different accommodation types (detached, semi-detached, terraced, flats)"
+                        "Distribution of different accommodation types (detached, semi-detached, terraced, flats)."
                     ], className="text-start"),
                     html.Li([
                         html.Strong("Occupancy Rating: "),
-                        "Breaks down total number of dwellings into occupied and unoccupied dwellings"
+                        "Breaks down total number of dwellings into occupied and unoccupied dwellings."
                     ], className="text-start"),
 
                 ], className="card-text", style={"listStylePosition": "inside", "paddingLeft": "0"}),
