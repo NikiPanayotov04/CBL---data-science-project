@@ -256,7 +256,7 @@ def homepage():
                                 html.Li(
                                     "Explore crime, deprivation, and census data to understand contributing factors."),
                                 html.Li("Review summarized data for quick insights."),
-                                html.Li("Access forecasts & Planning to see expected burglary rates by ward and time and allocate police resources."),
+                                html.Li("Access forecasts & planning to see expected burglary rates by ward and time and allocate police resources."),
                                 html.Li("Use the map view to gain spatial insights from the data.")
                             ])
                         ])
@@ -594,9 +594,7 @@ def census_data():
     ], style={"marginLeft": "250px", "width": "100%"})
 
 
-### TODO: WORK ON FORECASTING LAYOUT AND FINISH IT TODAY !!!
-
-# TODO: downloads and dataframes etc.
+# FORECASTING
 boroughs = {
      'E09000001': 'City of London',
      'E09000002': 'Barking and Dagenham',
@@ -1446,6 +1444,8 @@ def summarized_data():
 
             # Month picker
             html.H4("Monthly Key Insights", className="mt-4 mb-3 text-white"),
+            html.P(
+                'Growth is compared to the previous month.', style={'fontStyle': 'italic'}),
             html.Div([
                 html.H5("Choose Month", className="mt-4 mb-2"),
                 dcc.Dropdown(
@@ -1755,7 +1755,7 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
                                 )
                             ], className="text-center"),
                             dbc.Table.from_dataframe(
-                                ward_stats[['Ward Name', 'Borough', 'Current Count', 'Population', 'Rate per 1,000', 'Growth %']],
+                                ward_stats[['Ward Name', 'Borough', 'Current Count', 'Population', 'Previous Count', 'Rate per 1,000', 'Growth %']],
                                 striped=True,
                                 bordered=True,
                                 hover=True,
@@ -2325,7 +2325,6 @@ def toggle_data_explorer_submenu(pathname):
     return {"display": "none"}
 
 # FORECASTING & PLANNING CALLBACKS
-# TODO: GLOBAL STORAGES
 raw_forecasts_df = pd.read_csv('data/processed/sarima_final_forecast_per_ward.csv')
 lookup = pd.read_csv('data/lookups/look up LSOA 2021 to ward 2024 merged.csv')
 lookup_ward_borough = lookup[['Ward code', 'Ward name', 'Borough code', 'Borough name']].drop_duplicates()
