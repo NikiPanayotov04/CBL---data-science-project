@@ -2112,6 +2112,8 @@ def display_deprivation_data(n_clicks, toggle_value):
     corr_graph = html.Div([
         html.Hr(),
         html.H4("Correlation Between Features", className="text-start mb-3"),
+        html.P(
+            'Correlation is about the connection or association between two or more things. They can be positive (> 0.0), negative (< 0.0) or neutral (= 0.0). A positive correlation means that when one variable increases, the other also tends to increase. ', style={'fontStyle': 'italic'}),
         dcc.Graph(figure=fig)])
 
     return table, corr_graph, {"display": "block"}
