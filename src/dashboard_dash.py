@@ -12,12 +12,6 @@ import numpy as np
 from dash import dash_table
 from dash import callback_context as ctx
 import plotly.io as pio
-from heatmap_generator import generate_imd_heatmap, generate_forecasted_crime_counts_heatmap, generate_transport_stops_scatter, generate_base_ward_map
-from dash.exceptions import PreventUpdate
-import base64
-import uuid
-import folium
-from branca.element import Figure
 import plotly.express as px
 import plotly.graph_objects as go
 import json
