@@ -12,12 +12,6 @@ import numpy as np
 from dash import dash_table
 from dash import callback_context as ctx
 import plotly.io as pio
-from heatmap_generator import generate_imd_heatmap, generate_forecasted_crime_counts_heatmap, generate_transport_stops_scatter, generate_base_ward_map
-from dash.exceptions import PreventUpdate
-import base64
-import uuid
-import folium
-from branca.element import Figure
 import plotly.express as px
 import plotly.graph_objects as go
 import json
@@ -2112,6 +2106,8 @@ def display_deprivation_data(n_clicks, toggle_value):
     corr_graph = html.Div([
         html.Hr(),
         html.H4("Correlation Between Features", className="text-start mb-3"),
+        html.P(
+            'Correlation is about the connection or association between two or more things. They can be positive (> 0.0), negative (< 0.0) or neutral (= 0.0). A positive correlation means that when one variable increases, the other also tends to increase. ', style={'fontStyle': 'italic'}),
         dcc.Graph(figure=fig)])
 
     return table, corr_graph, {"display": "block"}
