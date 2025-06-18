@@ -1170,7 +1170,6 @@ def about():
                     html.Li("Hetvi Chaniyara for the guidance", className="text-center"),
                     html.Li("Metropolitan Police for crime data", className="text-center"),
                     html.Li("Office for National Statistics", className="text-center"),
-                    html.Li("Trinity College London for support and resources", className="text-center"),
                     html.Li("All team members and contributors", className="text-center")
                 ], className="card-text", style={"listStyle": "none", "padding": "0"})
             ], className="mb-4"),
@@ -1773,7 +1772,7 @@ def update_summarized_data(selected_month, borough_sort, ward_sort):
 from dash import dash_table
 
 from dash import Output, Input, dcc
-import dash_table
+from dash import dash_table
 import plotly.express as px
 
 @app.callback(
