@@ -1,7 +1,5 @@
 # CBL-data-science-project
-Project - Addressing real-world crime and security problems with data science.
-
-🐍 Python Scripts
+Project - Reducing residential burglary by developing an automated, data-driven forecasting model to inform the most efficient and effective resource allocation strategies.
 
 To reproduce the full pipeline from raw data to models, officer allocation, and dashboards — run the following files in this order:
 
