@@ -2,30 +2,55 @@
 Project - Addressing real-world crime and security problems with data science.
 
 🐍 Python Scripts
-HeatMapDeprivationIndex.py
-Generates a choropleth map of London wards based on the Index of Multiple Deprivation (IMD) scores. It merges ward shapefiles with IMD data and visualizes relative deprivation across the city.
 
-HeatMapLondonBurglaries.py
-Loads, filters, and processes burglary data (2022–2025) from multiple CSV files, performs spatial joins with ward boundaries, and visualizes the burglary count per ward in a choropleth map. It also groups the multiple wards of the City of London into a single entity for accurate display.
+To reproduce the full pipeline from raw data to models, officer allocation, and dashboards — run the following files in this order:
 
-GraphChartAnalyzation.py
-Creates a time-series line chart showing burglary trends in the City of London from 2010 to 2025, using historical crime records to highlight year-over-year changes.
+This in order to create the datasets:
+merge_city_of_london.py
+process_additional_datasets.py
+process_all_crime_data.py
 
-🧠 SQL File
-CrimeData2025-2022.sql
-Contains SQL queries written to analyze burglary data between 2022 and 2025.
+To run the Models:
+Sarima.ipynb
+xgboost_pipeline_FINAL.ipynb
 
-⚠️ Data Notice
-📦 The data files are not included in this repository because of their large size.
+To run the allocation:
+allocation.ipynb
 
-Before running any script, you must manually download and install the required datasets (ward shapefiles, crime CSVs, IMD Excel file, etc.).
-
-Important:
-The paths to these files are currently hardcoded in the .py files. You will need to update the file paths in each script to match your local folder structure before running them.
+After these steps:
+dashboard_dash.py
 
 
-in order: 
-run merge_city_of_london.py. 
-run process_all_crime_data.py
-run process_additional_datasets.py
+File Descriptions:
+
+merge_city_of_london.py
+Merges City of London wards and outputs the final 2024 ward shapefile.
+
+process_additional_datasets.py
+Processes and cleans all census, accommodation, household, and deprivation datasets.
+
+process_all_crime_data.py
+Loads raw burglary incident records (2022–2025), performs spatial joins to assign them to wards, and saves the result as a processed file for use in modeling.
+
+Sarima.ipynb
+Fits a SARIMA time series model to historical burglary counts per ward, capturing seasonal patterns.
+
+xgboost_pipeline_FINAL.ipynb
+Trains an XGBoost model using demographic and deprivation features to forecast burglary counts across wards.
+
+allocation.ipynb
+Solves a linear programming problem to assign limited officer-hours to each ward based on predicted crime demand and constraints.
+
+dashboard.py
+
+dashboard_dash.py
+The dashboard, with interactive views for crime trends, forecasts, summaries, maps, and data exploration.
+
+Archive Files
+Notebooks and scripts that are no longer used. While they are not executed anymore, they were helpful during experimentation and development.
+
+
+
+
+
 
